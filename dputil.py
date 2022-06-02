@@ -8,16 +8,71 @@ import os
 import jinja2
 import re
 import subprocess
-import yaml
+import yaml # pyyaml
 
 ver = "0.92"
+
+def jsonload(fn):
+  fh = open(fn, 'r')
+  data = fh.read()
+  obj = json.loads(data)
+  return obj
+
+def jsonwrite(ref, fn):
+  # Check type dict
+  if not isinstance(fn, str): apperror("Filename not passed as string")
+  if (not isinstance(ref, list)) or (not isinstance(ref, dict)): apperror("Data not passed as dict or list ref") # isinstance(ref,tuple) ?
+  # TODO: try ...
+  fh = open(fn, 'w')
+  if not fh: apperror("Error opening "+fn+" for writing");
+  fh.write( json.dumps(ref, indent=2)+"\n" )
+  fh.close()
+  return
+
+def yamlload(fn, **kwargs):
+  fh = open(fn, 'r')
+  data = fh.read()
+  if kwargs.get("multi") or re.search(r'---', data): # 
+    y = yaml.load_all(data, Loader=yaml.SafeLoader) # 
+    y = list(y)
+  else:
+    y = yaml.safe_load(data) # , Loader=yaml.SafeLoader
+  return y
+def yamlwrite(ref, fn):
+  fh = open(fn, 'w')
+  # TODO: Check multi-doc aspect
+  fh.write( yaml.dump(ref, Dumper=yaml.Dumper) )
+  fh.close()
+  return
+
+# Load template file and instantiate jinja2 template from it.
+# Template is ready to use
+def tmpl_load(fn):
+  tstr = open(fn, "r").read();
+  template = jinja2.Template(tstr)
+  return template
+
+def fileload(fn):
+  fh = open(fn, 'r')
+  # TODO: stderr ...
+  if not fh: return "";
+  data = fh.read()
+  if not data: return ""
+  return data
+
+def filewrite(cont, fn):
+  fh = open(fn, 'w')
+  fh.write(cont)
+  fh.close()
+  return
 
 # TODO: Create higher level wrapping object for CL execution
 # (cmd, ret code, results in stdout, stderr).
 # Both stdout and stderr are stored in returned dict.
 def run(cmd, **kwargs):
   ret = {"rc": -10000, "out": None, "err": None}
-  cmdarr = cmd_arr(cmd)
+  if isinstance(cmd, list): cmdarr = cmd
+  else: cmdarr = cmd_arr(cmd)
   # Be slightly wasteful and store BOTH stdout and stderr for later
   # inspection (by caller). Seems text=... param not supported by older
   # version
@@ -26,9 +81,9 @@ def run(cmd, **kwargs):
   ret["rc"]  = call.returncode
   ret["out"] = str(call.stdout)
   ret["err"] = str(call.stderr)
-  if ret["rc"] and kwargs["onerror"]:
+  if ret["rc"] and kwargs.get("onerror"):
     # Check 
-    kwargs["onerror"]("run: Error From command: "+cmd)
+    kwargs.get("onerror")("run: Error From command: "+cmd)
   return ret
 
 # dputil.cmd_arr(cmdstr)
@@ -42,3 +97,6 @@ def cmd_arr(cmdline):
 # dputil.tmpl_load(fn)
 # Load and instantiate Jinja 2 template from a file.
 # 
+
+def apperror(msg):
+  print(msg);
