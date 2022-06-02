@@ -3,7 +3,12 @@
 # - Formation of "templated" command lines (with j2 ?)
 # - Load,access,process ansible GCP dyn inv.
 # - Generate GCP Access Keys
-
+# ## GCP References
+# - https://rajathithanrajasekar.medium.com/google-cloud-iam-users-extraction-across-all-projects-in-a-gcp-org-2fbe66ddc045
+#   - gcloud projects get-iam-policy $projectname
+# - Folders listing https://cloud.google.com/sdk/gcloud/reference/resource-manager/folders/list
+#   - gcloud resource-manager folders list ...
+# - 
 #import dputil
 import dputpy.dputil as dputil
 import json

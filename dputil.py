@@ -13,8 +13,10 @@ import yaml # pyyaml
 ver = "0.92"
 
 def jsonload(fn):
-  fh = open(fn, 'r')
-  data = fh.read()
+  if re.search(r"\n", fn) or re.search(r"\[", fn) or re.search(r"\{", fn): data = fn
+  else:
+    fh = open(fn, 'r')
+    data = fh.read()
   obj = json.loads(data)
   return obj
 
@@ -30,8 +32,12 @@ def jsonwrite(ref, fn):
   return
 
 def yamlload(fn, **kwargs):
-  fh = open(fn, 'r')
-  data = fh.read()
+  if   re.search(r"\n", fn): data = fn
+  elif re.search(r"^---", fn): data = fn
+  else:
+    fh = open(fn, 'r')
+    if not fh: return None
+    data = fh.read()
   if kwargs.get("multi") or re.search(r'---', data): # 
     y = yaml.load_all(data, Loader=yaml.SafeLoader) # 
     y = list(y)

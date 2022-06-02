@@ -15,4 +15,3 @@ Olli Hollmen (2020-2022), License: MIT
 dputpy aims to have similar nature (mission, functionality) as its counterpart [DPUT](https://github.com/ohollmen/DPUT) (written in Perl).
 Both toolkits were born out of the (same) need to minimize low-level tasks (code writing) during real life automation creation.
 These repeating tasks patterns are thus collected to libraries with flexible and generic (easy-to-use) API interfaces.
-
