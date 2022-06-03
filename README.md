@@ -6,6 +6,16 @@ modern devops automation involving
 - Reading, Writing, Transforming Files (e.g. JSON, YAML, INI, CSV, ...)
 - Setting up and validating and testing arbitrary host environments (On-Prem, Cloud, Baremetal, VM, mixture of previous).
 
+# Using dputpy in a Python Project
+
+Example of using various dputpy modules in your project
+```
+# Load 
+import dputpy.dputil as dputil
+# Start using ...
+jdata = dputil.jsonload("./my.conf.json")
+```
+
 # Copyright and License
 
 Olli Hollmen (2020-2022), License: MIT
