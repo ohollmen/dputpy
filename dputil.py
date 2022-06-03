@@ -52,7 +52,13 @@ def yamlwrite(ref, fn):
   return
 
 # Load template file and instantiate jinja2 template from it.
-# Template is ready to use
+# Template is ready to use (Call ... on it)
+# ```
+# cust = { name: "John Smith", "amount": 80.00 }
+# tmpl = dputil.tmpl_load("./tmpl/billing.j2")
+# out = tmpl.render(**cust)
+# ...
+# ```
 def tmpl_load(fn):
   tstr = open(fn, "r").read();
   template = jinja2.Template(tstr)
