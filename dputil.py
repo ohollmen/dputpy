@@ -9,6 +9,7 @@ import jinja2
 import re
 import subprocess
 import yaml # pyyaml
+import csv
 
 ver = "0.92"
 
@@ -23,7 +24,7 @@ def jsonload(fn):
 def jsonwrite(ref, fn):
   # Check type dict
   if not isinstance(fn, str): apperror("Filename not passed as string")
-  if (not isinstance(ref, list)) or (not isinstance(ref, dict)): apperror("Data not passed as dict or list ref") # isinstance(ref,tuple) ?
+  if (not isinstance(ref, list)) and (not isinstance(ref, dict)): apperror("Data not passed as dict or list ref") # isinstance(ref,tuple) ?
   # TODO: try ...
   fh = open(fn, 'w')
   if not fh: apperror("Error opening "+fn+" for writing");
@@ -51,6 +52,7 @@ def yamlwrite(ref, fn):
   fh.close()
   return
 
+# dputil.tmpl_load(fn)
 # Load template file and instantiate jinja2 template from it.
 # Template is ready to use (Call ... on it)
 # ```
@@ -78,7 +80,9 @@ def filewrite(cont, fn):
   fh.close()
   return
 
+# dputil.run(cmd, onerror=errcb)
 # TODO: Create higher level wrapping object for CL execution
+# 
 # (cmd, ret code, results in stdout, stderr).
 # Both stdout and stderr are stored in returned dict.
 def run(cmd, **kwargs):
@@ -106,9 +110,28 @@ def run(cmd, **kwargs):
 def cmd_arr(cmdline):
   return re.split(r'\s+', cmdline);
 
-# dputil.tmpl_load(fn)
-# Load and instantiate Jinja 2 template from a file.
-# 
-
 def apperror(msg):
   print(msg);
+
+# Write array of dictionaries into a CSV file
+# Return errors
+def csv_write(arr, fn, **kwargs):
+  cfg = {}
+  if not isinstance(arr, list): return 1
+  fh = open(fn, "w")
+  fldnames = kwargs.get("fldnames")
+  
+  # Sample (all fields) from first
+  if not fldnames:
+    fldnames = arr[0].keys()
+  
+  qc = kwargs.get("qchar")
+  if not qc: qc = '"'
+  sep = kwargs.get("sep")
+  if not sep: sep = ','
+  #cw = csv.writer(fh, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  writer = csv.DictWriter(fh, fieldnames=fldnames, delimiter=sep, quotechar=qc, extrasaction='ignore')
+  writer.writeheader()
+  for e in arr: writer.writerow(e)
+  fh.close()
+  return 0
