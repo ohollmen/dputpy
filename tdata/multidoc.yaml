@@ -1,10 +1,13 @@
 ---
 name: Ernie
 job: Clown
+ssn: "001"
 ---
 name: Annie
 job: Shepherd
+ssn: "002"
 ---
 name: Danny
 job: Mechanic
+ssn: "003"
 
