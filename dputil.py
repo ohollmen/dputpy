@@ -11,6 +11,9 @@ import subprocess
 import yaml # pyyaml
 import csv
 
+from yaml import CLoader as Loader, CDumper as Dumper
+#from yaml import CLoader as SafeLoader, CDumper as Dumper
+
 ver = "0.92"
 
 def jsonload(fn):
@@ -40,7 +43,8 @@ def yamlload(fn, **kwargs):
     if not fh: return None
     data = fh.read()
   if kwargs.get("multi") or re.search(r'---', data): # 
-    y = yaml.load_all(data, Loader=yaml.SafeLoader) # 
+    #y = yaml.load_all(data, Loader=yaml.SafeLoader) #
+    y = yaml.load_all(data, Loader=Loader) #
     y = list(y)
   else:
     y = yaml.safe_load(data) # , Loader=yaml.SafeLoader
