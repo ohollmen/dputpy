@@ -78,3 +78,14 @@ def has_format(fname, fmtid, **kwargs):
     return 0
   print("Not any of the supported formats")
   return 0
+
+# Parse file as number.
+# TODO: support float ?
+def file_as_number(fname):
+  # 
+  cont = open(fname).read()
+  # test first by 
+  numre = r"\s*(\d+)\s*"
+  m = re.search(numre, cont)
+  if not m: print("Number could not be matched in "+fname); return None
+  return int(m[1])

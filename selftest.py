@@ -5,6 +5,7 @@ import json
 import dputpy.dputil as dputil
 import dputpy.gcputil as gcputil
 import dputpy.indexer as indexer
+import dputpy.filefmttest as ft
 print("Welcome to dputpy !");
 #y = dputpy.dputil.yamlload("./tdata/dict.yaml");
 y = dputil.yamlload("./tdata/dict.yaml");
@@ -38,3 +39,8 @@ idx = indexer.index(yarr, "ssn")
 
 nucnt = indexer.nonunique(yarr, "ssn")
 print(str(nucnt)+" Non-unique item(s)");
+
+n_0 = ft.file_as_number("tdata/zero")
+print("zero is "+str(type(n_0)));
+n_1 = ft.file_as_number("tdata/one")
+print("one is "+str(type(n_1)));
