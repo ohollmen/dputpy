@@ -6,6 +6,7 @@ import json
 import yaml
 import configparser
 
+import dputpy.dputil as dputil
 def isjson(fn):
   f = open(fn, "rb")
   j = json.load(f)
@@ -89,3 +90,63 @@ def file_as_number(fname):
   m = re.search(numre, cont)
   if not m: print("Number could not be matched in "+fname); return None
   return int(m[1])
+
+chage_trans = {
+  # { "lbl": 
+  "Last password change": { "lbl": "pw_lastch", "type": "date"},
+  "Password expires": { "lbl": "pw_exp",  "type": "date"},
+  "Password inactive": { "lbl": "pw_inact",  "type": "date"},
+  "Account expires": { "lbl": "acct_exp",  "type": "date"},
+  "Minimum number of days between password change": { "lbl": "pw_chmindelta", "type": "int"},
+  "Maximum number of days between password change": { "lbl": "pw_chmaxdelta", "type": "int"},
+  "Number of days of warning before password expires": { "lbl": "pw_expwarn", "type": "int"},
+}
+
+from datetime import datetime
+
+def chage_parse(uname, **kwargs):
+  debug = kwargs.get("debug")
+  if not uname: return None
+  r = dputil.run("chage -l "+uname)
+  if debug: print(r)
+  o = str( r.get("out", "") )
+  #o = str( r.get("out").decode("ascii") ) # 'utf-8'
+  if not o: return None
+  if debug: print("STR:"+o)
+  #o = "A:b\nB:b\nC:c\nD:d\n"
+  arr = o.splitlines() # split("\n")
+  if debug: print("ARRAY", arr)
+  def mkpair(l):
+    lr = l.split(":")
+    
+    if debug: print("LINEREC", lr)
+    k = lr[0].strip()
+    v = lr[1].strip()
+    trn = chage_trans.get(k)
+    if trn: k = trn["lbl"]
+    if trn:
+      if trn["type"] == 'int': v = int(v)
+      if trn["type"] == 'date':
+        if v == 'never': v = v
+	# https://stackoverflow.com/questions/466345/converting-string-into-datetime
+	# https://www.geeksforgeeks.org/how-to-convert-datetime-to-unix-timestamp-in-python/
+	# TODO: presentDate = datetime.datetime.now()
+        # unix_timestamp = datetime.datetime.timestamp(presentDate)*1000 # => datetime.timestamp()
+        #else: v = datetime.strptime(v, "%b %d, %Y").isoformat() # Apr 27, 2018
+        else: v = datetime.timestamp(datetime.strptime(v, "%b %d, %Y"))
+    return [ k, v ] # lr[0].strip()
+  pairs = list( map(mkpair, arr) )
+  if debug: print("PAIRS", pairs)
+  r = {}
+  for p in pairs:
+    r[p[0]] = p[1]
+  # TODO: Add "now" as reference
+  r["now"] = int( datetime.timestamp(datetime.now()) )
+  return r
+
+def chage_tdelta(chage, memname, **kwargs):
+  v = chage.get(memname, 0)
+  if v == "never": return -1
+  delta = chage.get("now", 0) - chage.get(memname, 0)
+  # if kwargs.get("unit"): ...
+  return delta

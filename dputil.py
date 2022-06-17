@@ -99,8 +99,9 @@ def run(cmd, **kwargs):
   call = subprocess.run(cmdarr,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE,  ) # text=True,
   ret["rc"]  = call.returncode
-  ret["out"] = str(call.stdout)
-  ret["err"] = str(call.stderr)
+  # Note: Newer Python could just use test=True above
+  ret["out"] = str(call.stdout.decode('utf-8')) # 'ascii'
+  ret["err"] = str(call.stderr.decode('utf-8'))
   if ret["rc"] and kwargs.get("onerror"):
     # Check 
     kwargs.get("onerror")("run: Error From command: "+cmd)
