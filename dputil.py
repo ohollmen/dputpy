@@ -70,6 +70,24 @@ def tmpl_load(fn):
   template = jinja2.Template(tstr)
   return template
 
+# Template and generate output contemnt, save to file
+# TODO: Separate passes for content generation and saving to files ( tmpl_multi_save(),
+# allow callbak for thi9s latter?)
+def tmpl_multi_gen(arr, **kwargs):
+  for cs in arr:
+    tfn = cs["tfn"] # "./tmpl/"+cs["bfn"]+".j2"
+    tmpl = tmpl_load(tfn)
+    out = tmpl.render(**cs) # Use node itself as params
+    outfn = cs["ofn"]
+    if kwargs.get("save", "") and cs.get("ofn"):
+      if kwargs.get("debug", ""): print("Saving: "+cs["ofn"]);
+      filewrite(out, outfn)
+    cb = None
+    udata = None
+    cb = kwargs.get("postcb", "")
+    if cb: cb(cs, udata)
+  return
+
 def fileload(fn):
   fh = open(fn, 'r')
   # TODO: stderr ...
