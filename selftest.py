@@ -29,7 +29,7 @@ def key_testing():
   jwt = dputil.jsonload(jwtfn);
   if jwt: print("Was able to load JSON back !")
 
-# CSV
+# Write CSV
 def test_yaml2csv():
   yarr = dputil.yamlload("./tdata/multidoc.yaml", Xmulti=1);
   fn_csv = "/tmp/multidoc.csv"

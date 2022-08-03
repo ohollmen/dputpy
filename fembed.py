@@ -44,6 +44,8 @@ def addfile(flist, lpath, **kwargs):
   node["content"] = dputil.fileload(lpath)
   if kwargs.get("md5") or calcmd5:
     node["md5"] = hashlib.md5(node["content"].encode('utf-8')).hexdigest()
+    # TypeError: Unicode-objects must be encoded before hashing
+    #node["md5"] = hashlib.md5(node["content"]).hexdigest()
   flist.append(node)
 
 # Transform into the final data structure for particular backend
