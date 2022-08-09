@@ -55,12 +55,15 @@ def indexby(arr, key):
     idx[k] = e
   return idx
 
-# Extract vector from (map()?)
-def vec(aod, key):
+# Extract (vertical) vector from LoD / AoO (map()?)
+def vec(aod, key, **kwargs):
   if not type(aod) is list: return None # print()
   vec = []
   for e in aod:
     vec.append( e.get(key) )
+  if kwargs.get("unique"):
+    d = todict(vec) # Auto-uniquify
+    return list(d.keys())
   return vec
 
 

@@ -71,9 +71,13 @@ def test_setops():
   i = setops.intersect([2,3,4], [1,2,3,4,5,6])
   print("Intersect: "+json.dumps(i))
   arr = [{"val": 1}, {"val": 2}, {"val": 3},]
+  arr2 = [{"val": 1}, {"val": 2}, {"val": 3},{"val": 2}, {"val": 3},]
   idx = setops.indexby(arr, "val")
   print("Index: "+json.dumps(idx))
   vec = setops.vec(arr, "val")
+  vec = setops.vec(arr2, "val")
+  print("Vector: "+json.dumps(vec))
+  vec = setops.vec(arr2, "val", unique = 1)
   print("Vector: "+json.dumps(vec))
 #test_yaml_parsing()
 #run_run_testing()
