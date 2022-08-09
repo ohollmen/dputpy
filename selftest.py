@@ -7,6 +7,7 @@ import dputpy.dputil as dputil
 import dputpy.gcputil as gcputil
 import dputpy.indexer as indexer
 import dputpy.filefmttest as ft
+import dputpy.setops as setops
 #print("Welcome to dputpy !");
 
 def test_yaml_parsing():
@@ -49,13 +50,31 @@ def test_file_hash_num():
   print("zero is "+str(type(n_0)));
   n_1 = ft.file_as_number("tdata/one")
   print("one is "+str(type(n_1)));
+def test_chage():
+  chage = ft.chage_parse(os.environ.get('USER'), debug=1)
+  print(json.dumps(chage, indent=2))
+  d = ft.chage_tdelta(chage, "pw_lastch");
+  print("Delta: "+str(d));
+def test_setops():
+  d = setops.diff([1,2,3], [3,4,5])
+  d = setops.diff([1,2,3], [4,5,6])
+  d = setops.diff([1,2,3], [1,2,3])
+  d = setops.diff([1,2,3], [1,2,3,4,5])
+  print("Diff: "+json.dumps(d))
+  u = setops.union([1,2,3], [3,4,5])
+  u = setops.union([1,2,3], [1000,1001,1002])
+  u = setops.union([1,2,3], [1,2,3])
+  u = setops.union([1,2,3], [2])
+  print("Union: "+json.dumps(u))
+  i = setops.intersect([1,2,3], [3,4,5])
+  i = setops.intersect([1,2,3], [4,5,6])
+  i = setops.intersect([2,3,4], [1,2,3,4,5,6])
+  print("Intersect: "+json.dumps(i))
 #test_yaml_parsing()
 #run_run_testing()
 #key_testing()
 #test_yaml2csv()
 #test_indexer()
 #test_file_hash_num()
-chage = ft.chage_parse(os.environ.get('USER'), debug=1)
-print(json.dumps(chage, indent=2))
-d = ft.chage_tdelta(chage, "pw_lastch");
-print("Delta: "+str(d));
+#test_chage()
+test_setops()
