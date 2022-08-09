@@ -30,6 +30,8 @@ def intersect(a,b, **kwargs):
   if kwargs.get("asarray"): isect = tolist(isect)
   return isect
 
+################# Utils #####################
+
 def todict(arr):
   d = {}
   for it in arr:
@@ -41,3 +43,24 @@ def todict(arr):
 def tolist(d):
   if not type(d) is list: return d # Throw ? No need
   return list( d.keys() )
+
+################ Higher level utils ##############
+
+# Index array by dict key named "key"
+def indexby(arr, key):
+  idx = {}
+  for e in arr:
+    k = e.get(key)
+    if not k: print("Error: key "+k+" not present") # Throw ?
+    idx[k] = e
+  return idx
+
+# Extract vector from (map()?)
+def vec(aod, key):
+  if not type(aod) is list: return None # print()
+  vec = []
+  for e in aod:
+    vec.append( e.get(key) )
+  return vec
+
+

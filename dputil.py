@@ -140,3 +140,20 @@ def csv_write(arr, fn, **kwargs):
   for e in arr: writer.writerow(e)
   fh.close()
   return 0
+
+# Read CSV into LoD / AoO
+def csv_load(fn, **kwargs):
+  fldnames = kwargs.get("fldnames", None)
+  sep = kwargs.get("sep", ',')
+  fh = open(fn, "r")
+  # restkey=None, restval=None,  dialect='excel',
+  reader = csv.DictReader(fh, fieldnames=fldnames,  delimiter=sep)
+  arr = [];
+  for row in reader:
+    arr.append(row)
+  # Eliminate forst row, e.g. for a case where fldnames are passed explicitly,
+  # but first row containes (unwanted) headers (e.g. spaces, in names, missing
+  # column names).
+  if kwargs.get("skipfirst"):
+    arr.pop(0)
+  return arr
