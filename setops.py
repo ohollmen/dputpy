@@ -59,11 +59,14 @@ def indexby(arr, key):
 def vec(aod, key, **kwargs):
   if not type(aod) is list: return None # print()
   vec = []
+  dosort = kwargs.get("sort")
   for e in aod:
     vec.append( e.get(key) )
   if kwargs.get("unique"):
     d = todict(vec) # Auto-uniquify
-    return list(d.keys())
+    vec = list(d.keys()) # OLD: ret
+  if kwargs.get("sort"):
+    vec.sort()
   return vec
 
 
