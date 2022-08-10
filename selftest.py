@@ -8,6 +8,7 @@ import dputpy.gcputil as gcputil
 import dputpy.indexer as indexer
 import dputpy.filefmttest as ft
 import dputpy.setops as setops
+import dputpy.clapp as clapp
 #print("Welcome to dputpy !");
 
 def test_yaml_parsing():
@@ -79,11 +80,20 @@ def test_setops():
   print("Vector: "+json.dumps(vec))
   vec = setops.vec(arr2, "val", unique = 1)
   print("Vector: "+json.dumps(vec))
-#test_yaml_parsing()
-#run_run_testing()
-#key_testing()
-#test_yaml2csv()
-#test_indexer()
-#test_file_hash_num()
-#test_chage()
-test_setops()
+# grep ^def selftest.py
+# perl -p -e 's/^def\s+(w+)/$1/; print $_
+ops = {"setops": test_setops}
+
+if __name__ == "__main__":
+  #test_yaml_parsing()
+  #run_run_testing()
+  #key_testing()
+  #test_yaml2csv()
+  #test_indexer()
+  #test_file_hash_num()
+  #test_chage()
+  #test_setops()
+  cla = clapp.new(ops)
+  clapp.clparse(cla)
+  rc = clapp.run(cla, None)
+  exit(0)
