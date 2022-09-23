@@ -102,6 +102,20 @@ def filewrite(cont, fn):
   fh.close()
   return
 
+# Try parsing output of command stdout (ret["out"]).
+# Parse YAML or JSON into ret["data"]
+# Example for dputil.run(): 
+#   run("cat /tmp/key.json", fmt='json')
+def run_parsecont(ret, kwa):
+  # Check format "fmt" parameter to see the need for parsing
+  fmts = {"json": 1, "yaml": 1}
+  fmt = kwa.get("fmt", "")
+  if   fmt == 'json': ret["data"] = json.loads(ret["out"]) # fmts.get(fmt):
+  elif fmt == 'yaml':
+    ret["data"] = yamlload(ret["out"]) # Rely on \n, ---. Pass kwa ?
+    # Extract non-array ? or last array ?
+  return 1
+
 # dputil.run(cmd, onerror=errcb)
 # TODO: Create higher level wrapping object for CL execution
 # 
@@ -112,17 +126,19 @@ def run(cmd, **kwargs):
   if isinstance(cmd, list): cmdarr = cmd
   else: cmdarr = cmd_arr(cmd)
   # Be slightly wasteful and store BOTH stdout and stderr for later
-  # inspection (by caller). Seems text=... param not supported by older
-  # version
+  # inspection (by caller). Seems text=... param is not supported by older
+  # python / module (e.g. Ubu18 built-in) version.
   call = subprocess.run(cmdarr,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE,  ) # text=True,
   ret["rc"]  = call.returncode
-  # Note: Newer Python could just use test=True above
+  # Note: Newer Python could just use text=True above
   ret["out"] = str(call.stdout.decode('utf-8')) # 'ascii'
   ret["err"] = str(call.stderr.decode('utf-8'))
   if ret["rc"] and kwargs.get("onerror"):
     # Check 
     kwargs.get("onerror")("run: Error From command: "+cmd)
+  # TODO: catch ... ? (for parser errors)
+  if kwargs.get("fmt"): run_parsecont(ret, kwargs)
   return ret
 
 # dputil.cmd_arr(cmdstr)

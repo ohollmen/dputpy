@@ -80,9 +80,19 @@ def test_setops():
   print("Vector: "+json.dumps(vec))
   vec = setops.vec(arr2, "val", unique = 1)
   print("Vector: "+json.dumps(vec))
+
+def test_runparse():
+  ret = dputil.run("cat /tmp/key.json", fmt='json')
+  print(json.dumps(ret["data"], indent=2))
+  if ret["data"].get("crv", "") == "P-256": print("Got crv = "+ ret["data"].get("crv", ""))
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
-ops = {"setops": test_setops}
+ops = {
+  "setops": test_setops,
+  "runparse": test_runparse
+}
+
+
 
 if __name__ == "__main__":
   #test_yaml_parsing()
