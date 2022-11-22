@@ -47,8 +47,12 @@ def folderpath(r, **kwargs):
       #f3 = tr.get(f2, {}).get("displayName", "")
       f3 = trent.get("displayName", "")
       if not f3: print("Trans failed: "+ f2 + " by " + json.dumps(trent))
-      else: print("Translated: "+f2+" => "+ f3); f2 = f3
-    else: print("Not translated: "+ f2);
+      else:
+        # print("Translated: "+f2+" => "+ f3);
+        f2 = f3
+    else:
+      #print("Not translated: "+ f2)
+      pass
     farr.append(f2)
   # Set to "fpath"
   return "/".join(farr)
