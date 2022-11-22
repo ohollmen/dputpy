@@ -10,7 +10,8 @@ import re
 import subprocess
 import yaml # pyyaml
 import csv
-
+import datetime
+# Installable by: brew install yaml-cpp libyaml
 from yaml import CLoader as Loader, CDumper as Dumper
 #from yaml import CLoader as SafeLoader, CDumper as Dumper
 
@@ -88,12 +89,23 @@ def tmpl_multi_gen(arr, **kwargs):
     if cb: cb(cs, udata)
   return
 
-def fileload(fn):
+def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
   if not fh: return "";
   data = fh.read()
   if not data: return ""
+  if kwargs.get("lines", 0):
+    # Also re.split()
+    arr = data.split("\n")
+    ne = kwargs.get("noempty", 0)
+    nc = kwargs.get("nocomm", 0)
+    arr2 = []
+    for l in arr:
+      if ne and re.search(r'^\s*$', l): continue
+      if nc and re.search(r'^\s*#', l): continue
+      arr2.append(l)
+    return arr2
   return data
 
 def filewrite(cont, fn):
@@ -191,3 +203,12 @@ def csv_load(fn, **kwargs):
   if kwargs.get("skipfirst"):
     arr.pop(0)
   return arr
+
+# TODO: Allow TZ, consider t (unix time)
+def isotime(**kwargs):
+  # astimezone().
+  tstr = datetime.datetime.now().replace(microsecond=0).isoformat(' ')
+  if kwargs.get("date"):
+    tcomp = tstr.split(" ")
+    tstr = tcomp[0]
+  return tstr
