@@ -88,6 +88,7 @@ def test_runparse():
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {
+  "keytest": key_testing,
   "setops": test_setops,
   "runparse": test_runparse
 }
