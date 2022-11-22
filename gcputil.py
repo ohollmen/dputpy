@@ -9,6 +9,8 @@
 # - Folders listing https://cloud.google.com/sdk/gcloud/reference/resource-manager/folders/list
 #   - gcloud resource-manager folders list ...
 # - 
+# ## Notes
+# - gcloud auth activate-service-account --key-file=~/service-account-key.json
 #import dputil
 import dputpy.dputil as dputil
 import json
