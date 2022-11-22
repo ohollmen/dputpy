@@ -37,6 +37,14 @@ def init(svs, mcfg, rev): # **kwargs
       if s.get("hapair"): s.get("hapair").reverse()
       if s.get("halbip"): s.get("halbip").reverse()
       if s.get("hasubnets"): s.get("hasubnets").reverse()
+      if mcfg and mcfg.get("envnames"):
+        mcfg.get("envnames").reverse()
+    # Update separate members on mcfg
+    # Check, validate ?
+    mcfg["envname_a"] = mcfg.get("envnames")[0]
+    mcfg["envname_b"] = mcfg.get("envnames")[1]
+    if not mcfg.get("isodate"): mcfg["isodate"] = dputil.isotime(date=1)
+    return
 
 def vm_get_byname(vmname):
   #
