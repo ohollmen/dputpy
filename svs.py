@@ -16,9 +16,23 @@ def new(_svs, _inv):
   if not hmap: print("No hmap accessible"); exit(1)
   return 1
 
+def reverse(svs, mcfg):
+  for s in svs:
+    if s.get("hapair"): s.get("hapair").reverse()
+    if s.get("halbip"): s.get("halbip").reverse()
+    if s.get("hasubnets"): s.get("hasubnets").reverse()
+    if s.get("snapschds"): s.get("snapschds").reverse()
+    if s.get("kubenvs"): s.get("kubenvs").reverse()
+  # Top-level
+  if mcfg and mcfg.get("envnames"):
+    mcfg.get("envnames").reverse()
+  return
 # Init / Prepare services
+# TODO: Could init and reverse separately. Note: reverse might imply partial re-init (!!), e.g. envnames
+# (... or anything in A,B arrays)
 def init(svs, mcfg, rev): # **kwargs
   iso = dputil.isotime(date=1)
+  #print("Initing "+str(len(svs))+" svs ...");
   for s in svs:
     #img = re.search(r'snapshot', s.get("hatype", ""))
     #hnode = hnode_get()
@@ -27,24 +41,29 @@ def init(svs, mcfg, rev): # **kwargs
     # GCP/DNS Conv done has '-'
     s["domainzone"] = s["domainname"].replace(".", "-");
     haimg = s.get("haimgbn", "") # bn ?
-    # Use curr. date
+    # Use curr. date (== make a good guess)
     if haimg:
       s["haimg"] = s["haimgbn"] + "-" + iso
-      #print("Generated dated image name for serv "+ s["title"] + "("+s["haimg"]+")");
+      #print("Generated dated image name for serv "+ s["title"] + " ("+s["haimg"]+")");
     # Need to reverse "hapair", halbip
     # TODO: kwargs.get("rev")
     if rev: # TODO: Check type == list
       if s.get("hapair"): s.get("hapair").reverse()
       if s.get("halbip"): s.get("halbip").reverse()
       if s.get("hasubnets"): s.get("hasubnets").reverse()
-      if mcfg and mcfg.get("envnames"):
-        mcfg.get("envnames").reverse()
-    # Update separate members on mcfg
-    # Check, validate ?
-    mcfg["envname_a"] = mcfg.get("envnames")[0]
-    mcfg["envname_b"] = mcfg.get("envnames")[1]
-    if not mcfg.get("isodate"): mcfg["isodate"] = dputil.isotime(date=1)
-    return
+      if s.get("snapschds"): s.get("snapschds").reverse()
+      if s.get("kubenvs"): s.get("kubenvs").reverse()
+  ####### mcfg #####
+  if mcfg and mcfg.get("envnames") and rev:
+    mcfg.get("envnames").reverse()
+  # Update separate members on mcfg
+  # Check, validate ?
+  mcfg["envname_a"] = mcfg.get("envnames")[0]
+  mcfg["envname_b"] = mcfg.get("envnames")[1]
+  if not mcfg.get("isodate"): mcfg["isodate"] = dputil.isotime(date=1)
+  
+  # NOT in loop
+  return
 
 def vm_get_byname(vmname):
   #
