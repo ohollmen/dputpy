@@ -1,6 +1,7 @@
 # Groups of GCP Commands (as templates)
 # Keep as separate lists for ease of handling a grouped commands context.
 
+# TODO: make use of deepcopy to create instance specific copy of expanded/ filled-in set
 
 tmpls_idx = {}
 # Set project, VM stop, VM start, VM meta backup, dns change
@@ -21,7 +22,7 @@ tmpls_uni = [
 ]
 
 def init():
-  # Index all sets ?
+  # Index all sets ? Create "out" member to all ?
   
   return
 
@@ -29,7 +30,7 @@ def tmpl_get(id):
   return tmpls_idx.get(id)
 
 # Run command expanded (to out), check if post-processing is needed
-def run():
+def run_cmd():
   #
   return
 
