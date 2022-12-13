@@ -19,7 +19,7 @@ def index(arr, keyattr, **kwargs):
     if precb:
       precb(it, udata)
     # Must keep **after** precb, because keyattr might be generated
-    if not it.get(keyattr): print("No value for key attribute "+ keyattr+" (Item idx="+i+")");
+    if not it.get(keyattr): print("No value for key attribute '"+ keyattr+"' (Item idx="+str(i)+")");
     idx[it[keyattr]] = it
     i += 1
   return idx
