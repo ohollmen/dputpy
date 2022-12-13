@@ -113,3 +113,32 @@ def kubeproxy_add(cname, cprox, **kwargs):
   #if kwargs.get("save"): dputil.yamlwrite(ys, kubecfg)
   # yaml.dump(ys, Dumper=yaml.Dumper)
   return ys
+
+# Get Google spreadsheet from a spreadsheet URL.
+# - authfile - JSON file with credentials to access spreadsheet
+# - sheeturl - The URL of Google spreadsheet
+# Sheet id / label can be passed as kwarg "sheetid"
+# ```
+# dputil.gsheet("authuser.json", "https://docs.google.com/spreadsheets/...")
+# ```
+# For Google/gspread OAuth authentication, see:
+# https://docs.gspread.org/en/latest/oauth2.html
+# (format and acquiry procedures same as for GCP)
+def gsheet(authfile, sheeturl, **kwargs):
+  import gspread
+  sheetlbl = kwargs.get("sheetid") or "Sheet1"
+  scope = ["https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",]
+  # gspread.oauth_from_dict()
+  # gc = gspread.service_account(filename=authfile) # One-step!
+  # creds = Credentials.from_service_account_file(authfile, scopes=scopes)
+  creds = Credentials.from_authorized_user_file(authfile, scope)
+  gc = gspread.authorize(creds) # gc
+  # open(title), open_by_key(key_in_url)
+  sh = gc.open_by_url(sheeturl)
+  wks = sh.worksheet(sheetlbl)
+  # Default: AoO (?)
+  data = None
+  data = wks.get_all_records() # Default
+  #if kwargs.get("aoa"): wks.get_all_values() # AoA
+  return data
