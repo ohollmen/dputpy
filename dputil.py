@@ -193,6 +193,7 @@ def csv_load(fn, **kwargs):
   sep = kwargs.get("sep", ',')
   fh = open(fn, "r")
   # restkey=None, restval=None,  dialect='excel',
+  if kwargs.get("debug"): print("Got overrides: ", kwargs);
   reader = csv.DictReader(fh, fieldnames=fldnames,  delimiter=sep)
   arr = [];
   for row in reader:
