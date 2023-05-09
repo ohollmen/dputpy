@@ -22,11 +22,13 @@ import dputpy.dputil as dputil
 #import json
 import os # os.path.basename(path)
 import re
+import sys
 
 allowcfg = {
   "sep": '\t', "skipfirst": 1,
   #"fldnames": ["scandate","image","repo_digest", "_img_id"],
-  "fldnames": ["scandate","imgfull","sha256sum", "img_id"],
+  #"fldnames": ["scandate","imgfull","sha256sum", "img_id"],
+  "fldnames": ["scandate","ignore1", "img", "tag", "sha256sum", "img_id"],
   "debug": 0
 }
 nslist = None
@@ -58,6 +60,7 @@ def mc_pods(cfg, **kwargs):
   # if re.search(r'\{\{', cfg.get("clusterfntmpl") ): 
   for cn in cs:
     fn = path + "podlist."+cn+".json"
+    if cfg.get("debug") or kwargs.get("debug"): print("Try loading "+ fn, file=sys.stderr);
     j = dputil.jsonload(fn)
     pods = j.get("items")
     mcpods_all += pods
@@ -152,7 +155,7 @@ def pod_imgstats(p):
   m  = p.get("metadata")
   st = p.get("status")
   
-  if not s or not m or not st: print("One of essential sections missing !", , file=sys.stderr); return None
+  if not s or not m or not st: print("One of essential sections missing !", file=sys.stderr); return None
   #print("spec: "+ str( isinstance(s, dict) ) );
   #print("meta: "+ str( isinstance(m, dict) ) );
   #print("namespace: "+m.get("namespace"))
@@ -164,11 +167,10 @@ def pod_imgstats(p):
   # print(json.dumps(pod, indent=2))
   return pod
 
-
 # Collect pods from multiple clusters and extract the image info from them
 # (for later stats or analysis).
 def imglist(cfg, **kwargs):
-  mcpods = mc_pods(cfg)
+  mcpods = mc_pods(cfg, **kwargs)
   #if kwargs.get(""): print(json.dumps(mcpods, indent=1)) # Pods
   allimg = []
   
@@ -179,3 +181,5 @@ def imglist(cfg, **kwargs):
         kwargs.get("icollcb")(pod)
       allimg.append(pod) # +=
   return allimg
+
+#### Authorized images list cmp. ops ######
