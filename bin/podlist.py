@@ -16,6 +16,7 @@ import sys
 import argparse
 import re
 import os
+import jinja2
 cfgfn = "podlist.conf.json"
 cfg = dputil.jsonload(cfgfn)
 imgidx = {} # Counts / Stats
@@ -24,7 +25,7 @@ imgidx = {} # Counts / Stats
 def gen_data_cmds(): # cfg
   cs = cfg.get("clusters")
   initcmd = cfg.get("initshellcmd", ""); itmpl = None
-  # if re.search(r'\{\{', initcmd): itmpl = jinja2.Template(initcmd)
+  if re.search(r'\{\{', initcmd): itmpl = jinja2.Template(initcmd)
   for c in cs:
     if itmpl: print(itmpl.render(**{"cluster": c}))
     else: print(initcmd)
