@@ -45,7 +45,7 @@ def find_files(cfg, **kwargs):
     for fn in files:
       src = root + "/" + fn
       debug and print(len(path) * '---', fn) #  ," => ", tgtpath + fn
-      if not os.access(src, os.R_OK): print("NOT readable: "+src); continue
+      if not os.access(src, os.R_OK): print("NON-READABLE: "+src); continue
       # Eliminate binary right away ?
       # Seems detecting binary file is rather cumbersome in Python
       # Suggestions: https://stackoverflow.com/questions/898669/how-can-i-detect-if-a-file-is-binary-non-text-in-python
@@ -83,6 +83,7 @@ def map_files(cfg, fnames, **kwargs): #
   if not p: raise "No parameters for templating !"
   runtmpl = kwargs.get("runtmpl")
   debug = kwargs.get("debug")
+  save  = kwargs.get("save")
   stats = {"except": 0, "bytecnt": 0, "filecnt": 0, "exfiles": []}
   for fn in fnames:
     relp = os.path.relpath(fn, travroot) # OLD: root, travroot
@@ -107,9 +108,9 @@ def map_files(cfg, fnames, **kwargs): #
         print("Could not create content from: "+ fn + " - ...")
         stats["except"] += 1
         stats["exfiles"].append(fn)
-    if kwargs.get("save"):
-      print("Should save output: "+tgtpath);
-      print(ocont);
+    if save:
+      debug and print("Should save output: "+tgtpath);
+      debug and print(ocont);
       # Save-as
       try:
         # With "wb": TypeError: a bytes-like object is required, not 'str'
