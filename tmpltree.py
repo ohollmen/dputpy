@@ -14,6 +14,7 @@ def init(cfg):
   if cfg.get("params"): return
   jcfg = open(cfg.get("paramfn"), "r").read()
   cfg["params"] = json.loads(jcfg)
+  if cfg.get("check") and not cfg.get("tgtroot"): raise "No destination path 'tgtroot' give (with check on)"
   return
 
 # Binary file detection (based on stack overflow post ref'd at call location)
@@ -23,14 +24,14 @@ def is_bin(fn):
   return is_binary_string(open(fn, 'rb').read(1024))
 
 # Extract a list of files recursively from cfg["travroot"].
-# Pre-eliminates non-readble files and binary files.
+# Pre-eliminates non-readble files and binary files. Also skip anything in ".git" (including dir itself).
 # Return list of files.
 # TODO: Allow list of dicts
 def find_files(cfg, **kwargs):
   troot = cfg.get("travroot")
   if not troot: raise "No travroot in config"
   fnames = []
-  debug = 0
+  debug = cfg.get("debug")
   for root, dirs, files in os.walk(troot): # "."
     # root is path starting w. initial root passed to os.walk(). The root string:
     # - appears as basename in original print below (after split)
@@ -40,6 +41,9 @@ def find_files(cfg, **kwargs):
     # ... where trailing "/./" remains (start is always nice and normalized)
     
     path = root.split(os.sep) # Gauge depth from path comps.
+    if ".git" in path:
+      debug and print("GIT dir (or dir/file under .git): "+root);
+      continue
     bn = os.path.basename(root)
     debug and print((len(path) - 1) * '---', os.path.basename(root))
     for fn in files:
@@ -105,7 +109,7 @@ def map_files(cfg, fnames, **kwargs): #
         stats["bytecnt"] += len(ocont)
         stats["filecnt"] += 1
       except:
-        print("Could not create content from: "+ fn + " - ...")
+        print("Error in Template expansion: Could not create content from: "+ fn + " - ...")
         stats["except"] += 1
         stats["exfiles"].append(fn)
     if save:
