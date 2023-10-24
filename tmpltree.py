@@ -11,6 +11,8 @@
 # - paramfn - filename for file to use as parameters for Jinja 2 templating
 # - check - Perform misc checks for e.g. target dir presence (etc.)
 # - debug - Turn on verbose runtime debug messages (for troubleshooting)
+# - excsuff - List of suffixes to exclude from templating give as dictionary
+#             with keys reflecting suffixes and values set to (any) true value)
 # ## Features
 # - Skip binary files as non-templateable
 # - Always skip .git directories as sub-tree to NOT template
@@ -20,6 +22,8 @@
 #   template fragments may trigger an exception)
 # ## TODO
 # - Create more sophisticated exclude mechanisms (by file suffix, dir tree, ...).
+# - Change excsuff to more user friendly list and ONLY internally convert to
+#   dict-index
 import os
 import jinja2
 import json
