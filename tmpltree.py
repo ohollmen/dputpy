@@ -1,8 +1,29 @@
 # dputpy template tree mapper/generator
-# 
+# Traverse and collect files in a directory tree as templates to generate content for.
+# Load a (global, singular) set of parameters to fill in templates with
+# (passing parameters to Jinja2 render() ) and capture the "expanded" (tempalted)
+# content for each files. Save and store the templated files into a separate
+# directory tree.
+# ## Config format
+# Following parameters are supported for config
+# - travroot - Source root directory for source template traversal
+# - tgtroot - Target directory to save templated content to
+# - paramfn - filename for file to use as parameters for Jinja 2 templating
+# - check - Perform misc checks for e.g. target dir presence (etc.)
+# - debug - Turn on verbose runtime debug messages (for troubleshooting)
+# ## Features
+# - Skip binary files as non-templateable
+# - Always skip .git directories as sub-tree to NOT template
+# ## Limitations
+# - All collected files (left after skip logig above) will be treated as
+#   templates. Files with template fragments '{{' or failed data lookups in
+#   template fragments may trigger an exception)
+# ## TODO
+# - Create more sophisticated exclude mechanisms (by file suffix, dir tree, ...).
 import os
 import jinja2
 import json
+import yaml
 #from pathlib import Path
 #import pathlib
 #NON-STD:from binaryornot.check import is_binary
@@ -16,6 +37,22 @@ def init(cfg):
   cfg["params"] = json.loads(jcfg)
   if cfg.get("check") and not cfg.get("tgtroot"): raise "No destination path 'tgtroot' give (with check on)"
   return
+# Load JSON (or YAML) config file.
+# Simply detect popular suffixes from end of fn (using str.endswith()).
+# Test (in py console): import tmpltree; d = tmpltree.loadcfg("tdata/dict.yaml")
+# Note: This ONLY works for single-doc YAML files (No '---' or single '---').
+# Return data(structure) in JSON file
+def loadcfg(fn):
+  if not os.path.isfile(fn): raise "File '"+fn+"' does not exist"
+  cont = open(fn, "r").read()
+  if not cont: raise "No config content gotten from '"+fn+"'"
+  cfg = None
+  if fn.endswith(".json"): cfg = json.loads(cont)
+  elif fn.endswith( (".yaml", ".yml")):
+    cfg = yaml.safe_load(cont)
+    # y = yaml.load_all(data, Loader=Loader) # multidoc ????
+  if not cfg: raise "No config data (dict) gotten from config file '"+fn+"'"
+  return cfg
 
 # Binary file detection (based on stack overflow post ref'd at call location)
 def is_bin(fn):
@@ -57,7 +94,9 @@ def find_files(cfg, **kwargs):
       #if kwargs.get("lod"): fnames.append({"": "", "": "", "":""})
       fnames.append(src)
   return fnames
-
+# Ensure that target path directory exists before generating and storing
+# files (and creating sub-directories) under it.
+# Return true values 1 and up for errors (e.g. dir is a file or creation fails).
 def ensure_path(dn, **kwargs):
   exists = os.path.exists(dn)
   isdir = os.path.isdir(dn)
@@ -90,6 +129,7 @@ def map_files(cfg, fnames, **kwargs): #
   save  = kwargs.get("save")
   stats = {"except": 0, "bytecnt": 0, "filecnt": 0, "exfiles": []}
   for fn in fnames:
+    # Extract relative path to map/append to tgtroot
     relp = os.path.relpath(fn, travroot) # OLD: root, travroot
     tgtpath = tgtroot + relp # + "/"
     debug and print("# relpath: " + relp + " => tgtpath: " + tgtpath)
@@ -98,11 +138,19 @@ def map_files(cfg, fnames, **kwargs): #
     #print("TGT-DIR: "+dn)
     derr = ensure_path(dn)
     if derr: continue
+    # Extract file suffix for advanced skip-logic
+    # os.path.splitext(fpath)[-1].lower() )
+    # OR import pathlib; pathlib.Path('file.yml').suffix == '.yml'
+    # OR bn.split(".")[-1] OR m = re.search('\.\w+$', fn) # ... ,flags=re.IGNORECASE
+    suff = relp.split(".")[-1]
+    print("Suffix: '"+suff+"'");
     # + "/" + bn
-    if runtmpl:
+    if runtmpl: # and 
       try:
         cont = open(fn, "r").read() # "r" OR "rb" ?
         if kwargs.get("showcont"): print(cont)
+        # Skip templating for particular suffix ?
+        #if skipsuff[suff]: ...
         tmpl = jinja2.Template(cont)
         ocont = tmpl.render(**p)
         debug and print("Gen'd "+str(len(ocont)) + " B of content");
@@ -112,7 +160,9 @@ def map_files(cfg, fnames, **kwargs): #
         print("Error in Template expansion: Could not create content from: "+ fn + " - ...")
         stats["except"] += 1
         stats["exfiles"].append(fn)
-    if save:
+    # else:
+    #   
+    if runtmpl and save:
       debug and print("Should save output: "+tgtpath);
       debug and print(ocont);
       # Save-as
