@@ -24,6 +24,7 @@ import os
 import jinja2
 import json
 import yaml
+import re # For suffix matching
 #from pathlib import Path
 #import pathlib
 #NON-STD:from binaryornot.check import is_binary
@@ -32,10 +33,15 @@ def init(cfg):
   # Fix tgtroot to have trailing "/"
   #if not ...: 
   # Params already embedded ? If so return w. those
-  if cfg.get("params"): return
-  jcfg = open(cfg.get("paramfn"), "r").read()
-  cfg["params"] = json.loads(jcfg)
+  if cfg.get("params"): pass # return
+  #jcfg = open(cfg.get("paramfn"), "r").read()
+  #cfg["params"] = json.loads(jcfg)
+  else: cfg["params"] = loadcfg(cfg.get("paramfn"));
+  if not cfg.get("params"): raise "Missing params (from main config 'params' or file by 'paramfn')"
   if cfg.get("check") and not cfg.get("tgtroot"): raise "No destination path 'tgtroot' give (with check on)"
+  # Ensure empty suffixmap (or not of type 
+  if not cfg.get("excsuff") or (type(cfg.get("excsuff")) != dict):
+    cfg["excsuff"] = {}
   return
 # Load JSON (or YAML) config file.
 # Simply detect popular suffixes from end of fn (using str.endswith()).
@@ -114,7 +120,7 @@ def ensure_path(dn, **kwargs):
       print("PATH-ERROR: Could not create path: "+dn+" - "+str(error))
       return 1
   return 0
-
+# Map list of templates files from source tree (travroot) to 
 def map_files(cfg, fnames, **kwargs): # 
   travroot = cfg.get("travroot")
   if not travroot: raise "No travroot in config"
@@ -127,7 +133,9 @@ def map_files(cfg, fnames, **kwargs): #
   runtmpl = kwargs.get("runtmpl")
   debug = kwargs.get("debug")
   save  = kwargs.get("save")
-  stats = {"except": 0, "bytecnt": 0, "filecnt": 0, "exfiles": []}
+  stats = {"except": 0, "bytecnt": 0, "filecnt": 0, "exfiles": [],
+  "excsuffcnt": 0}
+  excsuff = cfg.get("excsuff") or {}
   for fn in fnames:
     # Extract relative path to map/append to tgtroot
     relp = os.path.relpath(fn, travroot) # OLD: root, travroot
@@ -138,22 +146,27 @@ def map_files(cfg, fnames, **kwargs): #
     #print("TGT-DIR: "+dn)
     derr = ensure_path(dn)
     if derr: continue
+    suff = "" # None stringifies to 'None'
     # Extract file suffix for advanced skip-logic
     # os.path.splitext(fpath)[-1].lower() )
     # OR import pathlib; pathlib.Path('file.yml').suffix == '.yml'
     # OR bn.split(".")[-1] OR m = re.search('\.\w+$', fn) # ... ,flags=re.IGNORECASE
-    suff = relp.split(".")[-1]
-    print("Suffix: '"+suff+"'");
+    #suff = relp.split(".")[-1]
+    m = re.search('\.(\w+)$', fn)
+    if m and m[1]: suff = m[1]
+    debug and print("Suffix: '"+str(suff)+"' ("+relp+")");
     # + "/" + bn
     if runtmpl: # and 
       try:
         cont = open(fn, "r").read() # "r" OR "rb" ?
+	#ocont = None # No need to declare
         if kwargs.get("showcont"): print(cont)
-        # Skip templating for particular suffix ?
-        #if skipsuff[suff]: ...
-        tmpl = jinja2.Template(cont)
-        ocont = tmpl.render(**p)
-        debug and print("Gen'd "+str(len(ocont)) + " B of content");
+        # Skip templating for particular suffix, store original content
+        if suff and excsuff[suff]: ocont = cont; stats["excsuffcnt"] += 1
+        else:
+          tmpl = jinja2.Template(cont)
+          ocont = tmpl.render(**p)
+          debug and print("Gen'd "+str(len(ocont)) + " B of content");
         stats["bytecnt"] += len(ocont)
         stats["filecnt"] += 1
       except:
@@ -174,7 +187,15 @@ def map_files(cfg, fnames, **kwargs): #
   return stats
 # Example/testbed of using template tree mapper
 if __name__ == "__main__":
-  cfg = {"travroot": "/etc", "params": {"foo": 1}, "tgtroot": "/tmp/gentest/"}
+  cfgfn = "./tmpltree.conf.json"
+  # Example config
+  cfg = {"travroot": "/etc", "params": {"foo": 1}, "tgtroot": "/tmp/gentest/",
+    "check": 1, "excsuff": {"load": 1, "properties": 1, "md": 1}}
+  if os.path.isfile(cfgfn) or os.path.isfile("./tmpltree.conf.yaml"):
+    try:
+      cfg = loadcfg(cfgfn)
+    except:
+      print("Config file "+cfgfn+"found, but could not be loaded");exit(1)
   init(cfg)
   fnames = find_files(cfg)
   # Preferably filter files down in here to not run templating on files
