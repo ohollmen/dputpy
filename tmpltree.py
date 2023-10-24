@@ -166,15 +166,15 @@ def map_files(cfg, fnames, **kwargs): #
 	#ocont = None # No need to declare
         if kwargs.get("showcont"): print(cont)
         # Skip templating for particular suffix, store original content
-        if suff and excsuff[suff]: ocont = cont; stats["excsuffcnt"] += 1
+        if suff and excsuff.get(suff): ocont = cont; stats["excsuffcnt"] += 1
         else:
           tmpl = jinja2.Template(cont)
           ocont = tmpl.render(**p)
           debug and print("Gen'd "+str(len(ocont)) + " B of content");
         stats["bytecnt"] += len(ocont)
         stats["filecnt"] += 1
-      except:
-        print("Error in Template expansion: Could not create content from: "+ fn + " - ...")
+      except Exception as err:
+        print("Error in Template expansion: Could not create content from: "+ fn + " - "+str(err) )
         stats["except"] += 1
         stats["exfiles"].append(fn)
     # else:
@@ -186,8 +186,8 @@ def map_files(cfg, fnames, **kwargs): #
       try:
         # With "wb": TypeError: a bytes-like object is required, not 'str'
         open(tgtpath, "w").write(ocont)
-      except:
-        print("Error saving: "+tgtpath);
+      except Exception as err:
+        print("Error saving: '"+tgtpath+ "' Error: "+ str(err) );
   return stats
 # Example/testbed of using template tree mapper
 if __name__ == "__main__":
