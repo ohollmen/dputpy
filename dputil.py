@@ -130,19 +130,24 @@ def run_parsecont(ret, kwa):
 
 # dputil.run(cmd, onerror=errcb)
 # TODO: Create higher level wrapping object for CL execution
-# 
+# Optionak kwargs:
+# - debug - show verbose output
+# - fmt - trigger parsing for popular parseable (stdout) output formats (supported: json, yaml)
+# - onerror - pass and trigger a callback on errors (the rerror me3ssage is passed to this callback)
 # (cmd, ret code, results in stdout, stderr).
 # Both stdout and stderr are stored in returned dict.
 def run(cmd, **kwargs):
   ret = {"rc": -10000, "out": None, "err": None}
   if isinstance(cmd, list): cmdarr = cmd
   else: cmdarr = cmd_arr(cmd)
+  if kwargs.get("debug"): print("run-args: "+json.dumps(cmdarr));
   # Be slightly wasteful and store BOTH stdout and stderr for later
   # inspection (by caller). Seems text=... param is not supported by older
   # python / module (e.g. Ubu18 built-in) version.
   call = subprocess.run(cmdarr,
     stdout=subprocess.PIPE, stderr=subprocess.PIPE,  ) # text=True,
   ret["rc"]  = call.returncode
+  if ret["rc"]: print(f"Warning: run() may have failed with rc={ret['rc']}");
   # Note: Newer Python could just use text=True above
   ret["out"] = str(call.stdout.decode('utf-8')) # 'ascii'
   ret["err"] = str(call.stderr.decode('utf-8'))
@@ -150,7 +155,9 @@ def run(cmd, **kwargs):
     # Check 
     kwargs.get("onerror")("run: Error From command: "+cmd)
   # TODO: catch ... ? (for parser errors)
-  if kwargs.get("fmt"): run_parsecont(ret, kwargs)
+  if not ret["rc"] and kwargs.get("fmt"):
+    if kwargs.get("debug"): print("Requested parsing as "+kwargs.get("fmt"))
+    run_parsecont(ret, kwargs)
   return ret
 
 # dputil.cmd_arr(cmdstr)
