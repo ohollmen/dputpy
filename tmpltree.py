@@ -32,6 +32,7 @@ import re # For suffix matching
 #from pathlib import Path
 #import pathlib
 #NON-STD:from binaryornot.check import is_binary
+import shutil
 
 def init(cfg):
   # Fix tgtroot to have trailing "/"
@@ -104,6 +105,29 @@ def find_files(cfg, **kwargs):
       #if kwargs.get("lod"): fnames.append({"": "", "": "", "":""})
       fnames.append(src)
   return fnames
+
+def explicit_files(cfg, **kwargs):
+  fnames = cfg.get("files")
+  if not fnames: return None
+  if not len(fnames): return None
+  # Assume always relative names, relative to cfg.travroot
+  fnames = list( map(lambda fn: cfg.get("travroot") + fn, fnames) )
+  return fnames
+
+# Helper for use-case where an non-templated tree is copied to destination, followed by
+# overlaying a different (but structuarlly similar dir tree) templated dir tree.
+# This does only the copy-part.
+# Take source and dest root (paths) from same config members as other use-cases.
+# uses ensure_path()
+def copyfiles(cfg, files, **kwargs):
+  fnames = find_files(cfg)
+  stats = {}
+  try:
+    stats = map_files(cfg, fnames, runtmpl=0, copyonly=1) # No templating !!!
+  except:
+    print("Error copying files from "+cfg.get("")+" to "+cfg.get("")+" !")
+  return stats
+
 # Ensure that target path directory exists before generating and storing
 # files (and creating sub-directories) under it.
 # Return true values 1 and up for errors (e.g. dir is a file or creation fails).
@@ -137,8 +161,9 @@ def map_files(cfg, fnames, **kwargs): #
   runtmpl = kwargs.get("runtmpl")
   debug = kwargs.get("debug")
   save  = kwargs.get("save")
+  copyonly  = kwargs.get("copyonly")
   stats = {"except": 0, "bytecnt": 0, "filecnt": 0, "exfiles": [],
-  "excsuffcnt": 0}
+  "excsuffcnt": 0, "copycnt": 0}
   excsuff = cfg.get("excsuff") or {}
   for fn in fnames:
     # Extract relative path to map/append to tgtroot
@@ -159,6 +184,12 @@ def map_files(cfg, fnames, **kwargs): #
     m = re.search('\.(\w+)$', fn)
     if m and m[1]: suff = m[1]
     debug and print("Suffix: '"+str(suff)+"' ("+relp+")");
+    # Need import shutil. ensure_path() already executed !!!
+    if copyonly:
+       shutil.copyfile(fn, tgtpath) # Returns tgtpath ?
+       stats["copycnt"] += 1 # Update stats
+       continue
+    #else: print("No copyonly present")
     # + "/" + bn
     if runtmpl: # and 
       try:
@@ -191,7 +222,7 @@ def map_files(cfg, fnames, **kwargs): #
   return stats
 # Example/testbed of using template tree mapper
 if __name__ == "__main__":
-  cfgfn = "./tmpltree.conf.json"
+  cfgfn = os.environ["TMPLTREE_CONFIG"] or "./tmpltree.conf.json"
   # Example config
   cfg = {"travroot": "/etc", "params": {"foo": 1}, "tgtroot": "/tmp/gentest/",
     "check": 1, "excsuff": {"load": 1, "properties": 1, "md": 1}}
@@ -201,6 +232,9 @@ if __name__ == "__main__":
     except:
       print("Config file "+cfgfn+"found, but could not be loaded");exit(1)
   init(cfg)
+  # Choose files
+  fnames = cfg.get("files")
+  if fnames: fnames = explicit_files(cfg)
   fnames = find_files(cfg)
   # Preferably filter files down in here to not run templating on files
   # that are not actually templates. This should not hurt anything, but

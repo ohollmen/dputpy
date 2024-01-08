@@ -31,20 +31,38 @@ tmpls_uni = [
   { "id": "proj_set", "title": "Set Project Context",
     "tmpl": "gcloud config set project {{ projid }}" },
   { "id":"vmi_stop", "title": "Stop VM instance",
-  "tmpl": "gcloud compute instances stop {{ vmname_d }} --zone {{ zone_b }}" },
+    "tmpl": "gcloud compute instances stop {{ vmname_d }} --project {{ projid }} --zone {{ zone_b }}" },
+  # 
   { "id": "vmi_start", "title": "Start VM Instance",
-  "tmpl":"gcloud compute instances start {{ vmname_d }}  --zone={{ zone_b }}" },
-  
+    "tmpl":"gcloud compute instances start {{ vmname_d }} --project={{ projid }} --zone={{ zone_b }}" },
+  #  
+  { "id": "vmi_meta_tofile", "title": "Store VM Meta info (for later/emergency reference)",
+    #  "tmpl": "gcloud compute instances describe --format json --zone {{ zone_b }} {{ hname }} > {{ hname }}.dr_backup.{{ isodate }}.json"
+    "tmpl": "gcloud compute instances describe --format json --project {{ projid }} --zone {{ zone_b }} {{ vmname_d }} > {{ vmname_d }}.dr_backup.{{ isodate }}.json"
+  },
+  # 
   { "id": "vmi_meta", "title": "Store VM Meta info (for later/emergency reference)",
     #"tmpl": "gcloud compute instances describe --format json --zone {{ zone_b }} {{ hname }} > {{ hname }}.dr_backup.{{ isodate }}.json"
-    "tmpl": "gcloud compute instances describe --format json --zone {{ zone_b }} {{ vmname_d }} > {{ vmname_d }}.dr_backup.{{ isodate }}.json"
+    "tmpl": "gcloud compute instances describe --format json --project {{ projid }} --zone {{ zone_b }} {{ vmname_d }}"
   },
+  #  # 
+  { "id":"vmi_list", "title":"List VMs of a Project.",
+    "tmpl":"gcloud compute instances list --format json --project {{ projid }}"
+  
+  },
+
   { "id": "dns_update", "title": "Update DNS record",
   "tmpl": "gcloud dns record-sets update {{ servdns }}.{{ domainname }} --rrdatas '{{ newip }}' --type {{ rectype }} " + \
      "--ttl={{ dnsttl }} --zone=projects/{{ projid }}/managedZones/{{ domainzone }} --project={{ projid }}" },
   # Also: folders/$FOLDER_ID --folder ...
   { "id": "audit_logs", "title": "List Project Audit Log",
      "tmpl": "gcloud logging read 'logName : projects/{{ projid }}/logs/cloudaudit.googleapis.com' --format json --project {{ projid }}" },
+    # Seems either full URL or MI basename will work
+  { "id":"mi_desc", "title":"Describe single machine image in detail.",
+    "tmpl":"gcloud compute machine-images describe --format json --project {{ projid }} {{ miname }}"
+  
+  }
+
 ]
 
 tmpls_mirec = [
@@ -53,9 +71,12 @@ tmpls_mirec = [
   #{ "id": "vmi_mi_gen", "title": Backup ? This is out of date anyways, so no need 
   #out += "gcloud compute machine-images create {{ vmname_d }}-{{ isodate }}-dr --source-instance {{ vmname_d }} --zone {{ zone_b }}"; out += "\n"
   { "id": "vmi_unlock", "title": "Release VM Deletion Protection",
-  "tmpl": "gcloud compute instances update {{ vmname_d }} --no-deletion-protection --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances update {{ vmname_d }} --no-deletion-protection --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
   { "id": "vmi_del", "title": "Delete Old VM (by its original name) (also supports: --keep-disks all|boot|data)",
-  "tmpl": "gcloud compute instances delete {{ vmname_d }} --delete-disks all --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances delete {{ vmname_d }} --delete-disks all --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
+  
+
+  
   { "id": "mi_list", "title": "Choose recent / latest machine image for recovery (Consider: | grep selfLink )", # Note: See the format of --source-machine-image for next command. 
   # TODO: Add --project {{ projid }}
   "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink" }, # ; out += "\n"
@@ -64,9 +85,9 @@ tmpls_mirec = [
   # projects/myproj-vpc/regions/us-west1/subnetworks/mine-usw1
   #out +=
   "tmpl": "gcloud beta compute instances create {{ vmname_d }} " + \
-   " --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }} --zone {{ zone_b }} --project {{ projid }} " + \
+   " --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }} --project {{ projid }} --zone {{ zone_b }} " + \
    " --subnet projects/{{ netprojid }}/regions/{{ region_b }}/subnetworks/{{ destsubnet }} " + \
-   " --no-address --private-network-ip {{ ipaddr }}" }, #; out += "\n"
+   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection" }, #; out += "\n"
 ]
 
 tmpls_ssrec = [
@@ -168,6 +189,13 @@ def fillin_set(tset, p, **kwargs):
   #if kwargs.get(""):
   #if kwargs.get("str"): return
   return tset
+
+# Fill in single template item
+def fillin(t, p, **kwargs):
+  t = copy.deepcopy(t)
+  template = jinja2.Template(t["tmpl"])
+  t["out"] = template.render(**p)
+  return t
 
 # Convert pre-rendered template set into a command sequence (string).
 def commandseq(tset, **kwargs):
