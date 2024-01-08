@@ -119,6 +119,8 @@ def explicit_files(cfg, **kwargs):
 # This does only the copy-part.
 # Take source and dest root (paths) from same config members as other use-cases.
 # uses ensure_path()
+# TODO: Consider shutil.copytree(src, dest, dirs_exist_ok=True) 3.8+ (for dirs_exist_ok)
+# Note: distutils.dir_util.copy_tree(src, dst, ...) (otherwise fit) will be removed in 3.12
 def copyfiles(cfg, files, **kwargs):
   fnames = find_files(cfg)
   stats = {}
