@@ -26,14 +26,16 @@ def gen_data_cmds(): # cfg
   cs = cfg.get("clusters")
   initcmd = cfg.get("initshellcmd", ""); itmpl = None
   if re.search(r'\{\{', initcmd): itmpl = jinja2.Template(initcmd)
+  t2 = jinja2.Template("kubectl get pods -A -o json > {{ pipath }}podlist.{{ cluster }}.json")
   for c in cs:
     if itmpl: print(itmpl.render(**{"cluster": c}))
     else: print(initcmd)
-    print("kubectl get pods -A -o json > podlist."+c+".json")
+    p = { "pipath": cfg.get("podinfopath", ""), "cluster": c }
+    print( t2.render(**p) )
     print("exit"); # ONLY:if initcmd: ...
-  print("gsutil cp podlist.*.json gs://"+cfg.get("bucketname")+"/");
-  print("gcloud auth login --no-launch-browser");
-  print("gsutil cp gs://"+cfg.get("bucketname")+"/podlist.*.json .");
+  print("# gsutil cp podlist.*.json gs://"+cfg.get("bucketname")+"/");
+  print("# gcloud auth login --no-launch-browser");
+  print("# gsutil cp gs://"+cfg.get("bucketname")+"/podlist.*.json .");
 
 # Image stat collection CB (called during imglist collection)
 def iscoll(pod):
