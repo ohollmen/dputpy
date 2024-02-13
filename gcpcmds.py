@@ -71,40 +71,41 @@ tmpls_mirec = [
   #{ "id": "vmi_mi_gen", "title": Backup ? This is out of date anyways, so no need 
   #out += "gcloud compute machine-images create {{ vmname_d }}-{{ isodate }}-dr --source-instance {{ vmname_d }} --zone {{ zone_b }}"; out += "\n"
   { "id": "vmi_unlock", "title": "Release VM Deletion Protection",
-  "tmpl": "gcloud compute instances update {{ vmname_d }} --no-deletion-protection --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances update {{ vmname_d }} --no-deletion-protection --project {{ projid }} --zone {{ zone_b }}" },
   { "id": "vmi_del", "title": "Delete Old VM (by its original name) (also supports: --keep-disks all|boot|data)",
-  "tmpl": "gcloud compute instances delete {{ vmname_d }} --delete-disks all --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances delete {{ vmname_d }} --delete-disks all --project {{ projid }} --zone {{ zone_b }}" },
   
 
   
   { "id": "mi_list", "title": "Choose recent / latest machine image for recovery (Consider: | grep selfLink )", # Note: See the format of --source-machine-image for next command. 
   # TODO: Add --project {{ projid }}
-  "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink" }, # ; out += "\n"
+  "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink" },
   { "id": "vmi_restore_mi", "title": "Create VM from MI backup", # Note: the machine to bring up may not exist and cannot be looked up to derive e.g zone
   # TODO: destinat. zone B - derive from hnode, which is derived from (selfLink (has apiprefix) ? basename in "name", could use as srcimg )
   # projects/myproj-vpc/regions/us-west1/subnetworks/mine-usw1
-  #out +=
   "tmpl": "gcloud beta compute instances create {{ vmname_d }} " + \
    " --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }} --project {{ projid }} --zone {{ zone_b }} " + \
    " --subnet projects/{{ netprojid }}/regions/{{ region_b }}/subnetworks/{{ destsubnet }} " + \
-   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection" }, #; out += "\n"
+   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection" },
 ]
 
 tmpls_ssrec = [
   #{ "id":"vmi_stop", "title": "Stop VM instance",
   #"tmpl": "gcloud compute instances stop {{ vmname_d }} --zone {{ zone_b }}" }, #; out += "\n"
   { "id":"vmi_disk_det", "title": "Detach disk from old/existing VM",
-  # Can use --disk (name, equal to VM name by conv. OR --device-name avail in ansdi). Use --disk, because it MUST be avail for delete op
-  "tmpl": "gcloud compute instances detach-disk {{ vmname_d }} --disk {{ diskname_d }} --zone {{ zone_b }}" }, # ; out += "\n"
+  # Can use --disk (name, equal to VM name by conv.) OR --device-name (avail in ansdi). Use --disk, because it MUST be avail for delete op
+  # Note: on bad proj:  The project property must be set to a valid project ID, [...] is not a valid project ID.
+  # Boot disk: Disk [persistent-disk-0 ] is not attached to instance [...] in zone [...].
+  "tmpl": "gcloud compute instances detach-disk {{ vmname_d }} --disk {{ diskname_d }} --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
   { "id":"disk_del", "title": "Delete old disk",
   # NOTE: Rely on same naming between disk and VM (!?, see above p = {...}). This is a blessing as ansdi does NOT have disk name (only deviceName)
   "tmpl": "gcloud compute disks delete '{{ diskname_d }}' --zone {{ zone_b }}" }, # ; out += "\n"
   #### Region/Env A Snapshot
   
-  { "id":"ss_list_recent", "title": "Choose recent / latest snapshot (Consider | grep '\"name\"')",
+  { "id":"ss_list_recent", "title": "Choose recent / latest snapshot (Latest first, | grep '\"name\"' for brevity)",
   # github-us-east1-b* NOT supp: --zone {{ zone_a }}
   # # TODO: Add --project {{ projid }}
-  "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'" }, # ; out += "\n"
+  "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'" },
   { "id":"disk_ss_create", "title": "Extract disk from VM Snapshot",
   # ...of A (to dest zone - zone of B). Disk name by conv. same as VM. Shapshot policy should come from policy of B / region B
   # Policies can be found from Snapshots => SS Schedules. Note: THIS does NOT have device name param.
@@ -112,7 +113,7 @@ tmpls_ssrec = [
   "tmpl": "gcloud compute disks create {{ vmname_d }} --source-snapshot {{ apiprefix }}projects/{{ projid_a }}/global/snapshots/{{ snapname }} --zone {{ zone_b }} --type pd-ssd"  +\
     " --resource-policies '{{ rpols }}' " }, # ; out += "\n"
   { "id": "vmi_disk_att", "title": "Re-attach disk to VM", # (VM Name == Disk Name by conv.) --device-name dr-gitlab-vm-test. Note: added --device-name
-  "tmpl": "gcloud compute instances attach-disk {{ vmname_d }} --disk {{ vmname_d }} --boot --device-name {{ devname }} --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances attach-disk {{ vmname_d }} --disk {{ vmname_d }} --boot --device-name {{ devname }} --zone {{ zone_b }}" },
 ]
 
 # Note: Looping through this we could check "when" property => statement
