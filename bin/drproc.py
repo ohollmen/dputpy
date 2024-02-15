@@ -1,6 +1,8 @@
 #!/usr/local/bin/python3
 # ## Getting ansible  dynamic inventory (config: "invfn")
 # ansible-inventory --list > inventory_all.json
+# # TODO
+# - Possibly rename e.g. vmname_d to a/b convention.
 import re
 import json
 import dputpy.dputil as dputil
@@ -10,6 +12,7 @@ import dputpy.gcpcmds as gcmds
 import jinja2
 import os # For env
 import sys
+#import copy
 
 # See linetboot(for some of the orig. conventions "./serv_host.json")
 
@@ -24,8 +27,9 @@ import sys
 
 
 
-# swtype = Stich type: host, lb
+# swtype = Swich type: host, lb
 # https://cloud.google.com/dns/docs/records
+# Implementation expects the DNS records to exist in DNS and only updates them (does not create)
 def dns_change(s, mcfg):
   lbips = s.get("halbip", [])
   newip = lbips[1] # From dest
@@ -35,20 +39,20 @@ def dns_change(s, mcfg):
     # get fallback OR initial value from projid ???
     "projid": mcfg.get("netprojid") # extend([p, s], keys=[""]) if not set
   }  
-  p["domainname"] = s.get("domainname")
-  p["domainzone"] = s.get("domainzone") # NEW
-  #NOT: p["projid"]    = s.get("projid") # OK Fallback ?
+  p["domainname"] = s.get("domainname") # Used for $hn.$domainname
+  p["domainzone"] = s.get("domainzone") # NEW (used in GCP path-notation)
+  #NOT: p["projid"] = s.get("projid") # OK as Fallback ?
   if (not p["domainname"]): p["domainname"] =  mcfg["domainname"]
   if not p.get("projid"): p["projid"] = "PROJID" # Lookup !!
   p["servdns"] = s.get("servdns")
-  if not p.get("servdns"): p["servdns"] = "HOST" # Service DNS name
+  if not p.get("servdns"): p["servdns"] = "SERVDNSNAME" # Service DNS name
   # create => update rrdatas=
   #out = "gcloud dns record-sets update {{ servdns }}.{{ domainname }} --rrdatas '{{ newip }}' --type {{ rectype }} " + \
   #   "--ttl={{ dnsttl }} --zone=projects/{{ projid }}/managedZones/{{ domainzone }} --project={{ projid }}" # ; 
   tn = gcmds.tmpl_get("dns_update", arr=gcmds.tmpls_uni)
   if not tn or not tn.get("tmpl"): print("Error getting template"); exit(1)
   template = jinja2.Template(tn.get("tmpl"))
-  out = template.render(**p); #out += ""
+  out = template.render(**p);
   #print(out)
   return out
 
@@ -130,6 +134,7 @@ def ss_restore_disk(s, mcfg):
   destdevname = adi.hnode_disk_prop(dh, "deviceName")
   sss = s.get("snapschds")[1] # Dest/B Snapshot schedule
   #print("Dest node "+dh.get("hname")+" deviceName: "+destdevname+"\n");
+  snapname = "REPLACE_W_SNAPSHOT_NAME"
   p2 = {    
     #OLD: "snapname": s.get("snapname"), # Env A snapshot, For now from s
     "diskname_d": s.get("hapair")[1],
@@ -146,33 +151,60 @@ def ss_restore_disk(s, mcfg):
   if env_ssn: p["snapname"] = env_ssn
   # OR - mainconfig.snapshots (by service name given in)
   #if s.get()
-  
-  #out = ""
-  # Target VM/disk (B): Stop, Detach disk and delete it (get name from output: )
-  ## out += "Stop instance, detach it's disk and delete it"; out += "\n\n"
-  # OLD: Template inits
-  
-  
-  #for t in gcmds.tmpls_ssrec: out += ("# "+ t["title"]+"\n"+t["tmpl"] + "\n")
-  #template = jinja2.Template(out)
-  #out = template.render(**p)
+  #template = jinja2.Template(out); out = template.render(**p)
   out = gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_ssrec, p) )
   #print(out)
+  return out
+
+# Restore K8S deployment in reg. B
+# Use fillin(t, p) for ad-hoc purposes here
+def kubdepl_restore(s, mcfg):
+  clctx = mcfg.get("k8scmd")+" -c "+s.get("clusters", [])[1]+"\n" # Create cmd to login to cluster context
+  logintmpl = {"id": "k8s_login", "title": "Login to Cluster", "tmpl": mcfg.get("k8scmdtmpl", "") }
+  poddeltmpl = gcmds.tmpl_get("kub_pod_del")
+  if not poddeltmpl: print("No tmpl by kub_pod_del !"); exit(1)
+  # appinit() inited the templates, but we'll add this dynamically created one
+  gcmds.tmpls_k8s_dscale.insert(0, logintmpl)
+  gcmds.tmpls_k8s_dscale.append(gcmds.tmpl_get("kub_pod_depl_check"))
+  p = {
+    "k8scmd":   mcfg.get("k8scmd"),
+    "replicacnt": 0, # ,
+    "cluster":   s.get("clusters", [])[0],
+    "namespace": s.get("namespace", "UNKNOWN-NS"),
+    "deplname":  s.get("deplname", "UNKNOWN-DEPL"),
+    "podname":   s.get("podname", "UNKOWN_POD"),
+  }
+  out = "# Disable old deployment (and pod) if cluster is still up (not a real disaster).\n"
+  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) )
+  out += gcmds.fillin(poddeltmpl, p, title=True)["out"] +"\n"
+  out += "# Exit cluster\nexit\n\n"; out += "# Enable deployment in recovery region/location.\n"
+  #p2 = copy.deepcopy(p)
+  # For secondary change cluster and replicacnt
+  p["cluster"] = s.get("clusters", [])[1]
+  p["replicacnt"] = s.get("replicacnt", 1) # Def. 1
+  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) )
+  out += "# Exit cluster\nexit\n"
   return out
 
 # Do (e.g.) template initializations (once only) here, so that app can
 # handle multiple mi/ss recoveries.
 def appinit():
+  gcmds.init() # Init toolkit !
+  # Here we insert(at off=0) and append to tmpl arr to be utilized as de-facto
   # Add SS commodity ops
   gcmds.tmpls_ssrec.insert(0, gcmds.tmpl_get("vmi_stop", arr=gcmds.tmpls_uni))
   gcmds.tmpls_ssrec.insert(0, gcmds.tmpl_get("vmi_meta", arr=gcmds.tmpls_uni))
-  gcmds.tmpls_ssrec.insert(0, gcmds.tmpl_get("proj_set", arr=gcmds.tmpls_uni))
+  #gcmds.tmpls_ssrec.insert(0, gcmds.tmpl_get("proj_set", arr=gcmds.tmpls_uni))
   gcmds.tmpls_ssrec.append(gcmds.tmpl_get("vmi_start", arr=gcmds.tmpls_uni))
   ####### MI Template inits (add commodity ops) ####
   gcmds.tmpls_mirec.insert(0, gcmds.tmpl_get("vmi_stop", arr=gcmds.tmpls_uni))
   gcmds.tmpls_mirec.insert(0, gcmds.tmpl_get("vmi_meta", arr=gcmds.tmpls_uni))
-  gcmds.tmpls_mirec.insert(0, gcmds.tmpl_get("proj_set", arr=gcmds.tmpls_uni))
+  #gcmds.tmpls_mirec.insert(0, gcmds.tmpl_get("proj_set", arr=gcmds.tmpls_uni))
   gcmds.tmpls_mirec.append(gcmds.tmpl_get("vmi_start", arr=gcmds.tmpls_uni))
+  # K8S depl. Use .extend() to concat()
+  # gcmds.tmpls_k8s_dscale.insert(0, gcmds.tmpl_get(""))
+  #gcmds.tmpls_k8s_dscale.append(gcmds.tmpl_get("kub_pod_depl_check")) # Add status or whole
+  #print(gcmds.tmpls_k8s_dscale) # Debug dump
   return
 
 def dr_info(servs):
@@ -209,9 +241,10 @@ def dr_info(servs):
     # MI or SS restore (resttype = restoration type)
     
     if resttype:
-      butr = {"mi":"Machine image", "snap":"Snapshot (w. Disk)", "": "Unknown/Invalid"}
+      butr = {"mi":"Machine image", "snap":"Snapshot (w. Disk)", "k8sdepl":"Kubernetes Deployment", "": "Unknown/Invalid"}
       docitem = {}
-      buname = butr.get(resttype)
+      buname = butr.get(resttype, "")
+      if not buname: print("Recovery type "+resttype+" is not supported"); exit(1);
       #print("## "+s.get("title")+" Machine bring-up of type: "+buname+"\n");
       docitem["heading"] = s.get("title")+" Machine bring-up of type: "+buname+"";
       #print("Instantiate "+s.get("title")+" from "+buname+" of A\n") # + haimg
@@ -228,6 +261,8 @@ def dr_info(servs):
       #print("Instantiate "+s.get("title")+" from latest snapshot of A");
       elif resttype == 'snap':
         docitem["cmds"] = ss_restore_disk(s, mcfg)
+      elif resttype == 'k8sdepl':
+        docitem["cmds"] = kubdepl_restore(s, mcfg)
       #p = gentpara(s)
       #template = jinja2.Template("gcloud compute instances start {{ vmname_d }}  --zone={{ zone_b }}\n\n")
       #print( template.render(**p) );
@@ -250,7 +285,18 @@ def usage(msg):
   if msg: print(msg);
   #", ".join( ops.keys() ) 
   exit(1);
-ops = {}
+def gendoc(mcfg, servs):
+  tpara = dr_info(servs)
+  #print(json.dumps(tpara, indent=2)) # DEBUG
+  #NOT: tmplcont = dputil.fileload(mcfg["tmplfn"])
+  #exit(1);
+  if not mcfg["tmplfn"]: usage("No template given in config ('tmplfn')")
+  tmpl = dputil.tmpl_load(mcfg["tmplfn"])
+  if not tmpl: usage("No template loaded from: "+mcfg["tmplfn"]+"")
+  out = tmpl.render(**tpara)
+  print(out);
+
+ops = {"doc": gendoc, }
 if __name__ == '__main__':
   rev = 0 # OR TODO: from CLI
   rev_env = os.environ.get("DR_REVERSE")
@@ -271,7 +317,7 @@ if __name__ == '__main__':
   # Access ?
   hmap = adi.hmap_get()
   if not hmap: usage("No host map gotten from Ansible dynamic inventory.")
-  #gcmds.init() # Optional
+  #gcmds.init() # NOT Optional, but done in appinit()
   servs = dputil.jsonload(mcfg["svsfn"]) # OLD: svs, svs_fn
   if not servs: usage("No serices model gotten from (JSON) file: "+mcfg["svsfn"]+"");
   #print(json.dumps(hmap, indent=2));
@@ -280,12 +326,6 @@ if __name__ == '__main__':
   # Late enough that all other inits are completed (e.g. rev takes effect here)
   svs.init(servs, mcfg, rev) # if ???: usage("")
   #print(json.dumps(servs, indent=2)); exit(1);
-  tpara = dr_info(servs)
-  #print(json.dumps(tpara, indent=2)) # DEBUG
-  #NOT: tmplcont = dputil.fileload(mcfg["tmplfn"])
-  #exit(1);
-  if not mcfg["tmplfn"]: usage("No template given in config ('tmplfn')")
-  tmpl = dputil.tmpl_load(mcfg["tmplfn"])
-  if not tmpl: usage("No template loaded from: "+mcfg["tmplfn"]+"")
-  out = tmpl.render(**tpara)
-  print(out);
+  op = "doc"
+  ops.get(op)(mcfg, servs)
+  

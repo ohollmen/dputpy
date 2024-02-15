@@ -1,4 +1,4 @@
-# Groups of GCP Commands (as templates)
+# Groups of GCP Commands (as parametrized templates)
 # Keep as separate lists for ease of handling a grouped commands context.
 
 # TODO: make use of deepcopy to create instance specific copy of expanded/ filled-in set
@@ -32,25 +32,15 @@ tmpls_uni = [
     "tmpl": "gcloud config set project {{ projid }}" },
   { "id":"vmi_stop", "title": "Stop VM instance",
     "tmpl": "gcloud compute instances stop {{ vmname_d }} --project {{ projid }} --zone {{ zone_b }}" },
-  # 
   { "id": "vmi_start", "title": "Start VM Instance",
     "tmpl":"gcloud compute instances start {{ vmname_d }} --project={{ projid }} --zone={{ zone_b }}" },
-  #  
   { "id": "vmi_meta_tofile", "title": "Store VM Meta info (for later/emergency reference)",
-    #  "tmpl": "gcloud compute instances describe --format json --zone {{ zone_b }} {{ hname }} > {{ hname }}.dr_backup.{{ isodate }}.json"
-    "tmpl": "gcloud compute instances describe --format json --project {{ projid }} --zone {{ zone_b }} {{ vmname_d }} > {{ vmname_d }}.dr_backup.{{ isodate }}.json"
+    "tmpl": "gcloud compute instances describe {{ vmname_d }} --format json --project {{ projid }} --zone {{ zone_b }} > {{ vmname_d }}.dr_backup.{{ isodate }}.json"
   },
-  # 
-  { "id": "vmi_meta", "title": "Store VM Meta info (for later/emergency reference)",
-    #"tmpl": "gcloud compute instances describe --format json --zone {{ zone_b }} {{ hname }} > {{ hname }}.dr_backup.{{ isodate }}.json"
-    "tmpl": "gcloud compute instances describe --format json --project {{ projid }} --zone {{ zone_b }} {{ vmname_d }}"
-  },
-  #  # 
+  { "id": "vmi_meta", "title": "Output VM Meta info",
+    "tmpl": "gcloud compute instances describe {{ vmname_d }} --format json --project {{ projid }} --zone {{ zone_b }}" },
   { "id":"vmi_list", "title":"List VMs of a Project.",
-    "tmpl":"gcloud compute instances list --format json --project {{ projid }}"
-  
-  },
-
+    "tmpl":"gcloud compute instances list --format json --project {{ projid }}" },
   { "id": "dns_update", "title": "Update DNS record",
   "tmpl": "gcloud dns record-sets update {{ servdns }}.{{ domainname }} --rrdatas '{{ newip }}' --type {{ rectype }} " + \
      "--ttl={{ dnsttl }} --zone=projects/{{ projid }}/managedZones/{{ domainzone }} --project={{ projid }}" },
@@ -67,9 +57,9 @@ tmpls_uni = [
 
 tmpls_mirec = [
   #{ "id": "vmi_stop", "title": "Stop VM Instance",
-  #"tmpl": "gcloud compute instances stop {{ vmname_d }} --zone {{ zone_b }}" }, # ; out += "\n"
+  #"tmpl": "gcloud compute instances stop {{ vmname_d }} --zone {{ zone_b }}" },
   #{ "id": "vmi_mi_gen", "title": Backup ? This is out of date anyways, so no need 
-  #out += "gcloud compute machine-images create {{ vmname_d }}-{{ isodate }}-dr --source-instance {{ vmname_d }} --zone {{ zone_b }}"; out += "\n"
+  #out += "gcloud compute machine-images create {{ vmname_d }}-{{ isodate }}-dr --source-instance {{ vmname_d }} --zone {{ zone_b }}";
   { "id": "vmi_unlock", "title": "Release VM Deletion Protection",
   "tmpl": "gcloud compute instances update {{ vmname_d }} --no-deletion-protection --project {{ projid }} --zone {{ zone_b }}" },
   { "id": "vmi_del", "title": "Delete Old VM (by its original name) (also supports: --keep-disks all|boot|data)",
@@ -83,10 +73,11 @@ tmpls_mirec = [
   { "id": "vmi_restore_mi", "title": "Create VM from MI backup", # Note: the machine to bring up may not exist and cannot be looked up to derive e.g zone
   # TODO: destinat. zone B - derive from hnode, which is derived from (selfLink (has apiprefix) ? basename in "name", could use as srcimg )
   # projects/myproj-vpc/regions/us-west1/subnetworks/mine-usw1
+  # TODO: Consider --resource-policies
   "tmpl": "gcloud beta compute instances create {{ vmname_d }} " + \
-   " --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }} --project {{ projid }} --zone {{ zone_b }} " + \
+   " --project {{ projid }} --zone {{ zone_b }} " + \
    " --subnet projects/{{ netprojid }}/regions/{{ region_b }}/subnetworks/{{ destsubnet }} " + \
-   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection" },
+   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }}" },
 ]
 
 tmpls_ssrec = [
@@ -96,34 +87,45 @@ tmpls_ssrec = [
   # Can use --disk (name, equal to VM name by conv.) OR --device-name (avail in ansdi). Use --disk, because it MUST be avail for delete op
   # Note: on bad proj:  The project property must be set to a valid project ID, [...] is not a valid project ID.
   # Boot disk: Disk [persistent-disk-0 ] is not attached to instance [...] in zone [...].
-  "tmpl": "gcloud compute instances detach-disk {{ vmname_d }} --disk {{ diskname_d }} --project {{ projid }} --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute instances detach-disk {{ vmname_d }} --disk {{ diskname_d }} --project {{ projid }} --zone {{ zone_b }}" },
   { "id":"disk_del", "title": "Delete old disk",
   # NOTE: Rely on same naming between disk and VM (!?, see above p = {...}). This is a blessing as ansdi does NOT have disk name (only deviceName)
-  "tmpl": "gcloud compute disks delete '{{ diskname_d }}' --zone {{ zone_b }}" }, # ; out += "\n"
+  "tmpl": "gcloud compute disks delete '{{ diskname_d }}' --quiet --project {{ projid }} --zone {{ zone_b }}" },
   #### Region/Env A Snapshot
   
   { "id":"ss_list_recent", "title": "Choose recent / latest snapshot (Latest first, | grep '\"name\"' for brevity)",
   # github-us-east1-b* NOT supp: --zone {{ zone_a }}
-  # # TODO: Add --project {{ projid }}
+  # # Must have --project {{ projid }}
   "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'" },
   { "id":"disk_ss_create", "title": "Extract disk from VM Snapshot",
   # ...of A (to dest zone - zone of B). Disk name by conv. same as VM. Shapshot policy should come from policy of B / region B
-  # Policies can be found from Snapshots => SS Schedules. Note: THIS does NOT have device name param.
+  # Policies can be found from Snapshots => SS Schedules. Note: THIS does NOT have device name param. Cannot use --project (is embedded in --source-snapshot path) Manual says it can.
   # OLD: {{ apiprefix }}projects/{{ projid_a }}/zones/{{ zone_a }}/snapshots/{{ snapname }}
-  "tmpl": "gcloud compute disks create {{ vmname_d }} --source-snapshot {{ apiprefix }}projects/{{ projid_a }}/global/snapshots/{{ snapname }} --zone {{ zone_b }} --type pd-ssd"  +\
-    " --resource-policies '{{ rpols }}' " }, # ; out += "\n"
+  # https://cloud.google.com/compute/docs/disks/scheduled-snapshots
+  "tmpl": "gcloud compute disks create {{ vmname_d }} --project {{ projid }} --zone {{ zone_b }} --type pd-ssd"  +\
+    " --resource-policies '{{ rpols }}' --source-snapshot {{ apiprefix }}projects/{{ projid_a }}/global/snapshots/{{ snapname }}" },
   { "id": "vmi_disk_att", "title": "Re-attach disk to VM", # (VM Name == Disk Name by conv.) --device-name dr-gitlab-vm-test. Note: added --device-name
-  "tmpl": "gcloud compute instances attach-disk {{ vmname_d }} --disk {{ vmname_d }} --boot --device-name {{ devname }} --zone {{ zone_b }}" },
+  "tmpl": "gcloud compute instances attach-disk {{ vmname_d }} --disk {{ vmname_d }} --boot --device-name {{ devname }} --project {{ projid }} --zone {{ zone_b }}" },
 ]
 
+tmpls_k8s_status = [
+  
+]
+
+tmpls_k8s_dkill = [
+  { "id":"kub_pod_del", "title": "Delete Pod(s)",
+    "tmpl":"kubectl delete pod {{ podname }} -n {{ namespace }}"},
+]
 # Note: Looping through this we could check "when" property => statement
-tmpls_k8s = [
+tmpls_k8s_dscale = [
+  #{ "id":"kub_depl_status", "title": "Get pods and deployments status",
+  #  "tmpl":"kubectl get pods -n {{ namespace }}; kubectl get deployments -n {{ namespace }} -o wide"},
+   { "id":"kub_pod_depl_check", "title": "Check Pods, Deployments and Ingress",
+    "tmpl": "kubectl get pods -n {{ namespace }} ; kubectl get deployments -n {{ namespace }} -o wide ; kubectl get ing -n {{ namespace }}"},
   { "id":"kub_depl_scale", "title": "Scale deployment",
     "tmpl":"kubectl scale --replicas={{ replicacnt }} deployment/{{ deplname }} -n {{ namespace }}"},
-  { "id":"kub_pod_del", "title": "Delete Pods",
-    "tmpl":"kubectl delete pod {{ podname }} -n {{ namespace }}"},
-  { "id":"kub_pod_depl_check", "title": "Check Pods, Deployments and Ingress",
-    "tmpl":"kubectl get pods -n {{ namespace }} ; kubectl get deployments -n {{ namespace }} -o wide ; kubectl get ing -n {{ namespace }}"}
+  
+ 
 ]
 # https://cloud.google.com/kubernetes-engine/docs/how-to/api-server-authentication
 tmpls_k8s_envinit = [
@@ -139,19 +141,29 @@ tmpls_k8s_envinit = [
     "tmpl": "gcloud config set compute/region {{ region }}"},
 
 ]
+# Add property grp (label) to template.
+# TODO: Additionally add to index !!!
 def set_parent(arr, parlbl):
-  for it in arr: it["grp"] = parlbl
+  for it in arr:
+    it["grp"] = parlbl
+    tmpls_idx[it.get("id", "")] = it;
+  
 def init():
   # Index all sets ? Create "out" member to all ?
   # tmpls_uni, tmpls_mirec, tmpls_ssrec, tmpls_k8s, tmpls_k8s_envinit
   set_parent(tmpls_uni, "uni")
   set_parent(tmpls_mirec, "mirec")
   set_parent(tmpls_ssrec, "ssrec")
-  set_parent(tmpls_k8s, "k8s")
+  set_parent(tmpls_k8s_status, "k8s_status")
+  set_parent(tmpls_k8s_dkill, "k8s_dkill")
+  set_parent(tmpls_k8s_dscale, "k8s_dscale")
+  set_parent(tmpls_k8s_dscale, "k8s_dkill")
   set_parent(tmpls_k8s_envinit, "k8s_envinit")
-  # Populate: tmpls_idx = {}  
+  # Populate: tmpls_idx = {}
+  #print("TMPL IDX: "+json.dumps(tmpls_idx, indent=2));
   return
 
+# Get a template by id from a known array passed in kwrags["arr"]
 def tmpl_get(id, **kwargs):
   # From an array - sequential find ...
   arr = kwargs.get("arr")
@@ -159,7 +171,7 @@ def tmpl_get(id, **kwargs):
     m = list(filter(lambda t: t.get("id") == id, arr))
     if not m: return None
     return m[0]
-  return tmpls_idx.get(id)
+  return tmpls_idx.get(id) # Note: set_parent currently puts stuff to tmpls_idx
 
 
 # Run command expanded (to out), check if post-processing is needed.
@@ -194,8 +206,10 @@ def fillin_set(tset, p, **kwargs):
 # Fill in single template item
 def fillin(t, p, **kwargs):
   t = copy.deepcopy(t)
+  t["out"] = "" # Empty to be apendable
+  if kwargs.get("title"): t["out"] = "# "+t.get("title")+"\n"
   template = jinja2.Template(t["tmpl"])
-  t["out"] = template.render(**p)
+  t["out"] += template.render(**p)
   return t
 
 # Convert pre-rendered template set into a command sequence (string).

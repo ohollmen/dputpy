@@ -45,14 +45,18 @@ def init(svs, mcfg, rev): # **kwargs
     if haimg:
       s["haimg"] = s["haimgbn"] + "-" + iso
       #print("Generated dated image name for serv "+ s["title"] + " ("+s["haimg"]+")");
-    # Need to reverse "hapair", halbip
+    # Need to reverse array-val'd props
     # TODO: kwargs.get("rev")
+    arrprops = ["hapair", "halbip", "hasubnets", "snapschds", "kubenvs", "clusters", "regions"]
     if rev: # TODO: Check type == list
       if s.get("hapair"): s.get("hapair").reverse()
       if s.get("halbip"): s.get("halbip").reverse()
       if s.get("hasubnets"): s.get("hasubnets").reverse()
       if s.get("snapschds"): s.get("snapschds").reverse()
+      # K8S src,tgt arrays
       if s.get("kubenvs"): s.get("kubenvs").reverse()
+      if s.get("clusters"): s.get("clusters").reverse()
+      if s.get("regions"): s.get("regions").reverse() # used ?
   ####### mcfg #####
   if mcfg and mcfg.get("envnames") and rev:
     mcfg.get("envnames").reverse()
