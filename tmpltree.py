@@ -178,6 +178,7 @@ def map_files(cfg, fnames, **kwargs): #
     derr = ensure_path(dn)
     if derr: continue
     suff = "" # None stringifies to 'None'
+    ocont = ""
     # Extract file suffix for advanced skip-logic
     # os.path.splitext(fpath)[-1].lower() )
     # OR import pathlib; pathlib.Path('file.yml').suffix == '.yml'
