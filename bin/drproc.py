@@ -39,7 +39,7 @@ def dns_change(s, mcfg):
     # get fallback OR initial value from projid ???
     "projid": mcfg.get("netprojid") # extend([p, s], keys=[""]) if not set
   }  
-  p["domainname"] = s.get("domainname") # Used for $hn.$domainname
+  p["domainname"] = s.get("domainname") # Used for $hn.$domainname (see fallback to global below)
   p["domainzone"] = s.get("domainzone") # NEW (used in GCP path-notation)
   #NOT: p["projid"] = s.get("projid") # OK as Fallback ?
   if (not p["domainname"]): p["domainname"] =  mcfg["domainname"]
@@ -53,6 +53,7 @@ def dns_change(s, mcfg):
   if not tn or not tn.get("tmpl"): print("Error getting template"); exit(1)
   template = jinja2.Template(tn.get("tmpl"))
   out = template.render(**p);
+  if mcfg.get("errchk"): out += "\nif [ $? -ne 0 ]; then echo 'Error during op: "+tn.get("title")+"'; exit 1; fi\n"
   #print(out)
   return out
 
@@ -86,7 +87,7 @@ def mi_restore(s, mcfg):
   p["netprojid"] = mcfg.get("netprojid")
   if not p["netprojid"]: p["netprojid"] = s.get("netprojid") # Hosuld prioritize service netprojid !!!
   if not p["netprojid"]: p["netprojid"] = s.get("projid") # "NETPROJECT" # Project of VMs
-  out = gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_mirec, p) )
+  out = gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_mirec, p) , errchk=mcfg.get("errchk") )
   #print(out)
   return out
 
@@ -130,7 +131,7 @@ def ss_restore_disk(s, mcfg):
   dh = svs.vm_get_idx(s, 1)
   if not sh: print("Did not find source host (A) "+ s.get("hapair")[0]);
   if not dh: print("Did not find dest host (B) "+ s.get("hapair")[1]);
-  # Get dest disk device name (B)
+  # Get dest disk device name (B) from ADI
   destdevname = adi.hnode_disk_prop(dh, "deviceName")
   sss = s.get("snapschds")[1] # Dest/B Snapshot schedule
   #print("Dest node "+dh.get("hname")+" deviceName: "+destdevname+"\n");
@@ -147,12 +148,13 @@ def ss_restore_disk(s, mcfg):
   p = extend([ gentpara(s), p2 ])
   #print(json.dumps(p, indent=2)) ; exit()
   if not p.get("devname"): p["devname"] = p.get("diskname_d")
-  env_ssn = os.environ.get("SNAPSHOT_NAME") # SS Name from ENV
-  if env_ssn: p["snapname"] = env_ssn
+  # This "scalar solution" (global env. var, or global config member) is questionable as we could have many services w. "ss"
+  #env_ssn = os.environ.get("SNAPSHOT_NAME") # SS Name from ENV
+  #if env_ssn: p["snapname"] = env_ssn
   # OR - mainconfig.snapshots (by service name given in)
-  #if s.get()
+  #if s.get("snapname"): p["snapname"]: s.get("snapname") # Somewhat okay
   #template = jinja2.Template(out); out = template.render(**p)
-  out = gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_ssrec, p) )
+  out = gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_ssrec, p), errchk=mcfg.get("errchk") )
   #print(out)
   return out
 
@@ -175,14 +177,14 @@ def kubdepl_restore(s, mcfg):
     "podname":   s.get("podname", "UNKOWN_POD"),
   }
   out = "# Disable old deployment (and pod) if cluster is still up (not a real disaster).\n"
-  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) )
+  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) , errchk=mcfg.get("errchk") )
   out += gcmds.fillin(poddeltmpl, p, title=True)["out"] +"\n"
   out += "# Exit cluster\nexit\n\n"; out += "# Enable deployment in recovery region/location.\n"
   #p2 = copy.deepcopy(p)
   # For secondary change cluster and replicacnt
   p["cluster"] = s.get("clusters", [])[1]
   p["replicacnt"] = s.get("replicacnt", 1) # Def. 1
-  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) )
+  out += gcmds.commandseq( gcmds.fillin_set(gcmds.tmpls_k8s_dscale, p) , errchk=mcfg.get("errchk") )
   out += "# Exit cluster\nexit\n"
   return out
 
@@ -210,42 +212,32 @@ def appinit():
 def dr_info(servs):
   iso = dputil.isotime(date=1)
   # print("# DR on "+iso+"\n"); # TODO: envname_a to envname_b
-  ###### INIT ########
-  # Populate img names
-  #global mcfg
-  #global dom
-  
-  
-  #print(json.dumps(servs, indent=2)); exit(1); # DUMP
-  #print(json.dumps(hmap, indent=2)) # DUMP
-  # DNS Change on Service
+  #global mcfg; global dom; 
+  #print(json.dumps(servs, indent=2)); print(json.dumps(hmap, indent=2)); exit(1);
+  # DNS Change on Service. Return chunk of title/command.
   def serv_dns_change(s):
     global mcfg
     lbips = s.get("halbip", "") # In flag role
     #if s.get("resttype"): return # Skip restore types ?
+    # TODO: Check (for each item) if recovery already done ???
     if lbips:
-      #print() 
-      #print("- Switch DNS to LB IP: "+lbips[1] )
-      # TODO: Check if recovery already done ???
       return "# "+s.get("title")+ "\n" + dns_change(s, mcfg)
-  
-  
   # MI / Snap
   imgsections = []
+  butr = {"mi":"Machine image", "snap":"Snapshot (w. Disk)", "k8sdepl":"Kubernetes Deployment", "": "Unknown/Invalid"}
   ####### MAIN LOOP ########
   for s in servs:
     lbips = s.get("halbip", "") # In flag role
     haimg = s.get("haimg", "")
     resttype = s.get("resttype");
     # print("# "+s.get("title"));
-    # MI or SS restore (resttype = restoration type)
+    # MI or SS or K8S Depl. restore (resttype = restoration type)
     
     if resttype:
-      butr = {"mi":"Machine image", "snap":"Snapshot (w. Disk)", "k8sdepl":"Kubernetes Deployment", "": "Unknown/Invalid"}
       docitem = {}
       buname = butr.get(resttype, "")
       if not buname: print("Recovery type "+resttype+" is not supported"); exit(1);
-      #print("## "+s.get("title")+" Machine bring-up of type: "+buname+"\n");
+      #print("## "+s.get("title")+" Machine bring-up of type: "+buname+"\n"); # On tmpl !
       docitem["heading"] = s.get("title")+" Machine bring-up of type: "+buname+"";
       #print("Instantiate "+s.get("title")+" from "+buname+" of A\n") # + haimg
       docitem["intro"] = "Instantiate "+s.get("title")+" from "+buname+" of A"
@@ -256,36 +248,30 @@ def dr_info(servs):
       #tmpl = "gcloud compute instances describe --format json --zone {{ zone }} {{ hname }} > {{ hname }}.dr_backup.{{ isodate }}.json\n\n"
       #template = jinja2.Template(tmpl)
       #print( template.render(**dh) );
-      if resttype == 'mi':
-        docitem["cmds"] = mi_restore(s, mcfg);
-      #print("Instantiate "+s.get("title")+" from latest snapshot of A");
-      elif resttype == 'snap':
-        docitem["cmds"] = ss_restore_disk(s, mcfg)
-      elif resttype == 'k8sdepl':
-        docitem["cmds"] = kubdepl_restore(s, mcfg)
+      if resttype == 'mi':        docitem["cmds"] = mi_restore(s, mcfg);
+      elif resttype == 'snap':    docitem["cmds"] = ss_restore_disk(s, mcfg)
+      elif resttype == 'k8sdepl': docitem["cmds"] = kubdepl_restore(s, mcfg)
       #p = gentpara(s)
       #template = jinja2.Template("gcloud compute instances start {{ vmname_d }}  --zone={{ zone_b }}\n\n")
       #print( template.render(**p) );
       imgsections.append(docitem)
-    #if pair:
-    #  #if not pair: print("No DNS switch info"); continue
-    #  print("!!!!!!!!");
-    #  dns_flip(s, "host")
-    #  #print(json.dumps(s))
-  #print("# DNS Changes\n");
+  #OLD: print("# DNS Changes\n"); # On tmpl !
   dnschanges = [];
+  # TODO: Retain "t" structure here to have title avail for error message
   for s in servs:
     dnsch = serv_dns_change(s)
     if not dnsch: continue
     dnschanges.append(dnsch)
   tpara = { "imgsections": imgsections, "dnschanges": dnschanges, "mcfg": mcfg }
   return tpara
+
 # 
 def usage(msg):
   if msg: print(msg);
-  #", ".join( ops.keys() ) 
+  print("Try one of subcommands: " + ", ".join( ops.keys() ) )
   exit(1);
 def gendoc(mcfg, servs):
+  if mcfg.get("op") == "script":  mcfg["tmplfn"] = "./dr_script.sh.j2"; mcfg["errchk"]=True # Shell script
   tpara = dr_info(servs)
   #print(json.dumps(tpara, indent=2)) # DEBUG
   #NOT: tmplcont = dputil.fileload(mcfg["tmplfn"])
@@ -296,7 +282,7 @@ def gendoc(mcfg, servs):
   out = tmpl.render(**tpara)
   print(out);
 
-ops = {"doc": gendoc, }
+ops = {"doc": gendoc, "script": gendoc}
 if __name__ == '__main__':
   rev = 0 # OR TODO: from CLI
   rev_env = os.environ.get("DR_REVERSE")
@@ -308,6 +294,7 @@ if __name__ == '__main__':
   mcfg = dputil.jsonload(mcfg_fn)
   if not mcfg: usage("No main config loaded (from: "+mcfg_fn+")");
   if (not rev) and mcfg.get("reverse"): rev = 1
+  mcfg["reverse"] = rev # Set for e.g. templating
   if not mcfg.get("invfn"): usage("No inventory in main cfg."); # exit(1)
   if not mcfg.get("svsfn"): usage("No services file in main cfg."); #exit(1)
   # New blok of inits
@@ -326,6 +313,10 @@ if __name__ == '__main__':
   # Late enough that all other inits are completed (e.g. rev takes effect here)
   svs.init(servs, mcfg, rev) # if ???: usage("")
   #print(json.dumps(servs, indent=2)); exit(1);
-  op = "doc"
+  op = None # "doc"
+  if len(sys.argv) > 1: op = sys.argv[1]
+  if not op: usage("No subcommand passed !");
+  if not ops.get(op): usage("Subcommand "+op+" not suported !")
+  mcfg["op"] = op
   ops.get(op)(mcfg, servs)
   

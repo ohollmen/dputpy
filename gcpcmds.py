@@ -14,6 +14,11 @@
 # gcloud compute instances detach-disk --disk=my-disk (Or --device-name=my-device) --disk-scope
 # gcloud compute instances create VM_NAME --source-snapshot=BOOT_SNAPSHOT_NAME --boot-disk-size=BOOT_DISK_SIZE \
 #   --boot-disk-type=BOOT_DISK_TYPE --boot-disk-device-name=BOOT_DISK_NAME
+# ## Collecting template set vars
+# https://unix.stackexchange.com/questions/13466/can-grep-output-only-specified-groupings-that-match
+# ```
+# grep -oP '^(tmpls_\w+)' dputpy/gcpcmds.py
+# ```
 # ## TODO:
 # Instead of module-globals, group sets of templates to (e.g. for tmpls_uni)
 # tgrps["uni"] = [ ....
@@ -199,6 +204,8 @@ def fillin_set(tset, p, **kwargs):
     template = jinja2.Template(t["tmpl"])
     #t["out"] += ("# "+ t["title"]+"\n"+t["tmpl"] + "\n")
     t["out"] = template.render(**p)
+    # TODO: fillin(t, p) # Check deepcopy() state before ena !!!
+    t["errchk"] = "if [ $? -ne 0 ]; then echo 'Error during op: "+t.get("title")+"'; exit 1; fi\n"
   #if kwargs.get(""):
   #if kwargs.get("str"): return
   return tset
@@ -210,14 +217,18 @@ def fillin(t, p, **kwargs):
   if kwargs.get("title"): t["out"] = "# "+t.get("title")+"\n"
   template = jinja2.Template(t["tmpl"])
   t["out"] += template.render(**p)
+  #if kwargs.get("errchk"):
+  t["errchk"] = "if [ $? -ne 0 ]; then echo 'Error during op: "+t.get("title")+"'; exit 1; fi\n"
   return t
 
 # Convert pre-rendered template set into a command sequence (string).
 def commandseq(tset, **kwargs):
   out = kwargs.get("initstr", "")
   outarr = []
+  print("ERRCHK=" + str( kwargs.get("errchk", "N/A") ) );
   for t in tset:
     out += ("# "+ t["title"]+"\n"+t["out"] + "\n")
+    if kwargs.get("errchk"): out += t.get("errchk", "") # Add error check on explicit request
     # Case array - ONLY include "out"
     #outarr.append(t["out"]);
   return out
