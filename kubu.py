@@ -1,7 +1,7 @@
 # Kubernetes Utilities
 # Works largely based on config with:
 # - cluster (AoS) - The list of cluster names
-# - prefix (str) - prefix for the cluster podlist 
+# - OLD: prefix (str) - prefix for the cluster podlist 
 # ## Notes on image id
 # - In docker image ls output the image hash is titled "IMAGE ID" (e.g. f1cb7c7d58b7)
 # - docker image inspect f1cb7c7d58b7 creates a detailed JSON output, where
@@ -25,10 +25,11 @@ import re
 import sys
 
 allowcfg = {
-  "sep": '\t', "skipfirst": 1,
+  # Tweak based on presence and correctness of headings, delimiter/separator
+  "sep": ',', "skipfirst": 1,
   #"fldnames": ["scandate","image","repo_digest", "_img_id"],
   #"fldnames": ["scandate","imgfull","sha256sum", "img_id"],
-  "fldnames": ["scandate","ignore1", "img", "tag", "sha256sum", "img_id"],
+  "fldnames": ["scandate","maintainer", "img", "tag", "sha256sum"], # , "img_id"
   "debug": 0
 }
 nslist = None
@@ -47,20 +48,21 @@ def podfilter(p):
         return 0
   return 1
     
-# Generate Multi Cluster Pod List
-# Create a linear list of pods from one or more cluster pod listings gotten with:
+# Load and Merge/aggergate Multi Cluster Pod List
+# Create a linear list of pods from one or more cluster pod listings gotten with (-A = all namespaces):
 #     kubectl get pods -A -o json
 # Note: Info has to be  ...
-# Pod listings are expected to be stored in files.
+# Pod listings are expected to be stored in files (created earlier e.g. with the help of podlist.py "gencmds" subcommand).
 def mc_pods(cfg, **kwargs):
   cs = cfg.get("clusters")
   mcpods_all = []
   prefix = cfg.get("prefix") or "podlist."
   path = cfg.get("podinfopath")
   # if re.search(r'\{\{', cfg.get("clusterfntmpl") ): 
+  debug = cfg.get("debug") or kwargs.get("debug")
   for cn in cs:
     fn = path + "podlist."+cn+".json"
-    if cfg.get("debug") or kwargs.get("debug"): print("Try loading "+ fn, file=sys.stderr);
+    if debug: print("Try loading "+ fn, file=sys.stderr);
     j = dputil.jsonload(fn)
     pods = j.get("items")
     mcpods_all += pods
@@ -70,7 +72,7 @@ def mc_pods(cfg, **kwargs):
   nsf = cfg.get("nsfilter", {})
   # kwargs.get("filter", 0) and
   if nsf and nsf.get("exc"): # Add: .. and is list
-    
+    if debug: print("Perform Filtering of type exc. w. "+ str(len( nsf.get("exc") )) + " patterns", file=sys.stderr);
     global nslist
     nslist = []
     nslist_l = nsf.get("exc")

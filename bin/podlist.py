@@ -66,9 +66,15 @@ def servernorm(o):
 # 
 def allowlist(cfg, **kwargs):
   if not cfg: print("No config for loading allowed-images list"); return None
+  # Allow any aspect of CSV/TSV to be configured
+  if cfg.get("sep"): kubu.allowcfg["sep"] = cfg.get("sep")
+  if "skipfirst" in cfg: kubu.allowcfg["skipfirst"] = cfg.get("skipfirst")
+  fns = cfg.get("fldnames")
+  if fns and isinstance(fns, list) and len(fns): kubu.allowcfg["fldnames"] = cfg.get("fldnames")
+  # Load !
   allow = dputil.csv_load(cfg.get("allowlistfn"), **kubu.allowcfg)
   if not allow: print("No allowed-images list loaded !"); return None
-  # print("Loaded CSV: ", allow);
+  #if cfg.get("debug", 0): print("Loaded CSV: ", allow);
   if cfg.get("debug"): print(json.dumps(allow, indent=1))
   hash_key = "sha256sum" # OLD: repo_digest => sha256sum
   tagin = kwargs.get("tagin", "")
