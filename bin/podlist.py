@@ -107,18 +107,20 @@ def allow_check(allimg, allow_idx, **kwargs):
         vmsg += " BAD by img."
         #verr += 1
       else: vmsg +=  " OK by img."; vok += 1
+      
       # Secondary check for digest / sha256sum
       if vok and ai: # OLD: (not verr)
         if ai.get("sha256sum") == i.get("sha256sum"): # OK, even hash matches
           # Both ok
           vmsg += " Also OK by hash."
-          vok += 1
+          vok += 1 # Add to validation score +1
           #continue
         else:
           #verr += 1
           vmsg += " BAD by hash."
       counts[vok] += 1
-      if vok < 2: # Report as non approved
+      # Check validation score: 0,1,2. Dropped to 1 to NOT require perfect sha256 (only basename+tag)
+      if vok < 1: # Report as non approved
         unibad[iname_f] = 1 # TODO: cnt
         # TODO: Should create partial duplicate with imgbn
         # pis2 = deepcopy(); delete(pis2["imgs"]); badpod.append(pis2)
