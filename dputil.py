@@ -71,7 +71,7 @@ def tmpl_load(fn):
   template = jinja2.Template(tstr)
   return template
 
-# Template and generate output contemnt, save to file
+# Template multiple items and generate output content with individual templates, save each to an individual file.
 # TODO: Separate passes for content generation and saving to files ( tmpl_multi_save(),
 # allow callbak for thi9s latter?)
 def tmpl_multi_gen(arr, **kwargs):
@@ -88,7 +88,43 @@ def tmpl_multi_gen(arr, **kwargs):
     cb = kwargs.get("postcb", "")
     if cb: cb(cs, udata)
   return
-
+# Generate content with single template for multiple items outputting each to individual file
+# If file property is missing in each item, output all to common stdout.
+def tmpl_gen(arr, tmplfn, **kwargs):
+  #
+  if tmplfn: tmplstr = open(tmplfn, "r").read()
+  else: print("No template filename"); return
+  if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return
+  #alen = len(sys.argv)
+  #if alen > 2: tmplstr = sys.argv[2]; # print("Len is "+str(alen));
+  template = jinja2.Template(tmplstr) # Once (for all items) !
+  altroot = kwargs.get("path")
+  debug   = kwargs.get("debug")
+  for it in arr:
+    out = template.render(**it);
+    # TODO: Possibly reject absolute paths. os.path.exists()
+    fn = it.get("ofn");
+    if fn:
+      bn = os.path.basename(fn)
+      dn = os.path.dirname(fn)
+      if altroot:
+        dn = altroot+"/"+dn
+        fn = altroot+"/"+fn
+      
+      if not os.path.exists(dn):
+        os.mkdir(dn, 0o755)
+        if debug: print("Created-path: "+dn, file=sys.stderr)
+      # Write output
+      #fh = open(fn, "w")
+      #fh.write(out);
+      #fh.close()
+      open(fn, "w").write(out) #; fh.close()
+      if debug: print("Wrote to "+fn, file=sys.stderr);
+      #print(out)
+    # Default: print to stdout
+    else:
+      print(out)
+  return
 def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
