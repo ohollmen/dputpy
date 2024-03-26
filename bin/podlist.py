@@ -33,9 +33,10 @@ def gen_data_cmds(): # cfg
     p = { "pipath": cfg.get("podinfopath", ""), "cluster": c }
     print( t2.render(**p) )
     print("exit"); # ONLY:if initcmd: ...
-  print("# gsutil cp podlist.*.json gs://"+cfg.get("bucketname")+"/");
-  print("# gcloud auth login --no-launch-browser");
-  print("# gsutil cp gs://"+cfg.get("bucketname")+"/podlist.*.json .");
+  if cfg.get("bucketname"):
+    print("# gsutil cp podlist.*.json gs://"+cfg.get("bucketname")+"/");
+    print("# gcloud auth login --no-launch-browser");
+    print("# gsutil cp gs://"+cfg.get("bucketname")+"/podlist.*.json .");
 
 # Image stat collection CB (called during imglist collection)
 def iscoll(pod):
@@ -58,55 +59,78 @@ def servernorm(o):
 # - rundate,
 # - imgfull (path),
 # - tag (image tag part NEW)
-# - sha256sum (digest)
+# - sha256sum (digest), this is really the column matching K8S Pod dump "imageID"
 # - image_id (Not used)
 # Create member "imgbn" for the purpose of later correlating images soly by their basenames.
 # Strip any (optional) "sha256:" prefix from 
 # Return allowed images list (AoO, any indexing must be done by caller).
 # 
-def allowlist(cfg, **kwargs):
+def allowlist_load(cfg, **kwargs):
   if not cfg: print("No config for loading allowed-images list"); return None
-  # Allow any aspect of CSV/TSV to be configured
+  ######### Allow any aspect of CSV/TSV to be configured #######
   if cfg.get("sep"): kubu.allowcfg["sep"] = cfg.get("sep")
   if "skipfirst" in cfg: kubu.allowcfg["skipfirst"] = cfg.get("skipfirst")
   fns = cfg.get("fldnames")
   if fns and isinstance(fns, list) and len(fns): kubu.allowcfg["fldnames"] = cfg.get("fldnames")
-  # Load !
-  allow = dputil.csv_load(cfg.get("allowlistfn"), **kubu.allowcfg)
+  ######## Load ! ######
+  #bn =    # Basename
+  fn = cfg.get("allowlistfn")
+  #if fn.endswith(".yaml") or fn.endswith(".yml"):
+  #  cont = open(fn, "r").read()
+  #  allow = yaml.safe_load(cont)
+  #elif fn.endswith(".json"):
+  #  cont = open(fn, "r").read()
+  #  cfg = json.loads(cont)
+  allow = dputil.csv_load(fn, **kubu.allowcfg)
   if not allow: print("No allowed-images list loaded !"); return None
   #if cfg.get("debug", 0): print("Loaded CSV: ", allow);
-  if cfg.get("debug"): print(json.dumps(allow, indent=1))
+  if cfg.get("debug"): print("DEBUG:\n"+json.dumps(allow, indent=1))
   hash_key = "sha256sum" # OLD: repo_digest => sha256sum
   tagin = kwargs.get("tagin", "")
+  # Populate / Normalize add'l fields into records (for fast comparison)
   for a in allow:
     if a.get(hash_key, "").find("sha256:", 0) > -1: a[hash_key] = a.get(hash_key).replace("sha256:", "")
     #if tagin: 
     if not a.get("imgfull"): a["imgfull"] = a.get("img") + ':' + a.get("tag")
     # "imgbn" should be basename + tag
-    a["imgbn"] = os.path.basename(a.get("imgfull"))
+    a["imgbn"] = os.path.basename(a.get("imgfull")) # ... with tag. Very useful for (performing) cross-correlation.
   return allow
 
-# Check
+# Check list of all images against the list of allowed images.
+# Generate a third summary/report structure on non-compliant pods.
+# Image entity Members
+# - img - full path w/o tag (universal)
+# - imgfull - full path w. tag (universal)
+# - tag - tag part only (universal)
+# - imgbn - image basename (last image name part) + tag (universal)
+# - sha256sum - the trailing part of kubernetes pod "imageID" (with prefix "@sha256:" stripped)
+#   - Gotten from section "containerStatuses", "initContainerStatuses" (NOT "containers", there's no "imageID" in that section)
+# Check levels (passed in :
+# - 1: Check by image basename + tag
+# - 2: Additionally check sha256 checksum
 def allow_check(allimg, allow_idx, **kwargs):
   counts = [0,0,0] # 
-  unibad = {}
-  badpod = []
+  unibad = {} # Unique bad index (key: img + tag) (val: 1)
+  badpod = [] # Bad pods list (AoO) to collect
   imgcnt = 0
   debug = kwargs.get("debug")
+  chklvl = kwargs.get("chklvl") or 1
+  if (chklvl != 1) and (chklvl != 2): chklvl = 1
+  if debug: printf("Chose check level: "+chklvl) # STDERR !
   for pis in allimg: # Pod image stats
     imgs = pis["imgs"] # 1 or more images
     for i in imgs:
       #if not i.get("img"): print("img member not present ", i); continue
       #if not i.get("tag"): print("tag member not present ", i); continue
-      iname_f =  i.get("img")+":"+i.get("tag")
-      iname = i.get("imgbn")
-      ai = allow_idx.get(iname) # ai = Allowed image
-      vok = 0 # Validation ok 0=not okay, 1=imagename okay, 2=even digest is okay
+      iname_f =  i.get("img")+":"+i.get("tag") # full for reporting
+      iname = i.get("imgbn") # bn + tag
+      ai = allow_idx.get(iname) # ai = Allowed image (Try to lookup by basename)
+      vok = 0 # Validation ok 0=not okay, 1=imagename (bn+tag) okay, 2=even digest is okay
       vmsg = iname_f + " "
       if not ai:
-        vmsg += " BAD by img."
+        vmsg += " BAD by img-bn."
         #verr += 1
-      else: vmsg +=  " OK by img."; vok += 1
+      else: vmsg +=  " OK by img-bn."; vok += 1
       
       # Secondary check for digest / sha256sum
       if vok and ai: # OLD: (not verr)
@@ -120,7 +144,7 @@ def allow_check(allimg, allow_idx, **kwargs):
           vmsg += " BAD by hash."
       counts[vok] += 1
       # Check validation score: 0,1,2. Dropped to 1 to NOT require perfect sha256 (only basename+tag)
-      if vok < 1: # Report as non approved
+      if vok < chklvl: # Report as non-approved
         unibad[iname_f] = 1 # TODO: cnt
         # TODO: Should create partial duplicate with imgbn
         # pis2 = deepcopy(); delete(pis2["imgs"]); badpod.append(pis2)
@@ -132,6 +156,7 @@ def allow_check(allimg, allow_idx, **kwargs):
       imgcnt += 1
   return {"counts": counts, "unibad": unibad, "imgcnt": imgcnt, "badpod": badpod}
 
+# Report culprit pods in rudimentary Markdown (style) format.
 def allow_report(cres):
   badimgs = cres.get("unibad").keys()
   cnt = len( badimgs )
@@ -149,13 +174,21 @@ def allow_report(cres):
   if not badpods: return 0
   print("Culprit pods (for cleanup or review):");
   for fixi in badpods:
+    #maint = fixi.get("maint");
     print("- "+fixi.get("img", "")+" ("+fixi.get("sha256sum", "")+")");
     print("  - Cluster: "+fixi.get("cluster")+",  NS: "+fixi.get("ns")+",  Podname: "+fixi.get("name")+"");
 
 def imgstat():
   allimg = kubu.imglist(cfg, icollcb=iscoll);
   print(json.dumps(allimg, indent=1))
+  # Gather count stats here (# images per pod)
+  cntstat = {}
+  for p in allimg:
+    cnt = len( p.get("imgs", []) )
+    if cntstat.get(str(cnt)): cntstat[str(cnt)] += 1
+    else: cntstat[str(cnt)] = 1
   print(str(len(allimg))+ " Image stats nodes (w. 1 or more imgs)", file=sys.stderr)
+  print("cntstats: "+ json.dumps(cntstat), file=sys.stderr);
   return 0
 
 def allpods():
@@ -168,12 +201,12 @@ def allpods():
   print(str(len(mcpods))+ " Kubernetes pods (on "+str(ccnt)+" clusters)", file=sys.stderr)
   return 0
 def allowlist_show():
-  allow = allowlist(cfg)
+  allow = allowlist_load(cfg)
   print(json.dumps(allow, indent=1))
   print(str(len(allow))+ " Allowed items", file=sys.stderr)
 def check():
   allimg = kubu.imglist(cfg, icollcb=iscoll, filter=1, debug=0); # print(json.dumps(imgidx, indent=1))
-  allow = allowlist(cfg)
+  allow = allowlist_load(cfg)
   norm = 0
   if norm:
     # Note: normaliz. MUST be done before indexing
@@ -183,8 +216,9 @@ def check():
     xform.xform(allow, servernorm) ; # print(json.dumps(allow, indent=1)); # exit(1)
   allow_idx = indexer.index(allow, "imgbn") # OLD: image / NEW-1: imgfull NEW2 imgbn
   #print(json.dumps(allow_idx, indent=1)); # exit(1) # INDEX
-  # Allow-detection
-  cres = allow_check(allimg, allow_idx, debug=0)
+  # Allow-detection. Note: Uses the whole-list
+  chklvl = cfg.get("checklevel") or 1
+  cres = allow_check(allimg, allow_idx, debug=0, chklvl=chklvl)
   ########## Reporting (disallowed) #################
   #if opts.get("json"): print(json.dumps(cres, indent=1))
   allow_report(cres)
@@ -200,13 +234,14 @@ def usage(msg):
 ops = {
   # {"cb":    .... , # "title": ""},
   "gencmds":   {"cb": gen_data_cmds,  "title": "Generate commands to extract cluster pod info."},
-  "allpods":   {"cb": allpods,  "title": "Show raw Kubernetes pod info"},
+  "allpods":   {"cb": allpods,        "title": "Show raw Kubernetes pod info (merged, configured filtering applied)"},
   
-  "imgstat":   {"cb": imgstat,  "title": "Show Pod image statistics (one pod to possibly many images)"},
+  "imgstat":   {"cb": imgstat,         "title": "Show Pod image statistics (one pod to possibly many images)"},
   
   "allowlist": {"cb": allowlist_show, "title": "Dump allowlist JSON"},
   "check":     {"cb": check,  "title": "Check Pod images against allowed list"},
 }
+# TODO: parse opts: --all - force list all pods (ignore filtering)
 if __name__ == '__main__':
   sys.argv = sys.argv[1:]
   if not len(sys.argv): usage("No subcommand/op given");
@@ -215,8 +250,10 @@ if __name__ == '__main__':
   if not ops.get(op): usage("No subcommand "+op+" available");
   #parser = argparse.ArgumentParser(description='Pod image checker')
   #parser.add_argument('index',  default=0, help='Output index, no final') # type=ascii
+  #parser.add_argument('all',  default=0, help='List all pods, do not filter') # for allpods/podslist
   #global args
   #args = vars(parser.parse_args())
+  #args[op] = op
   ops[op]["cb"]()
   sys.exit(0)
 

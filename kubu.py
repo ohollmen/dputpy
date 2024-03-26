@@ -32,7 +32,7 @@ allowcfg = {
   "fldnames": ["scandate","maintainer", "img", "tag", "sha256sum"], # , "img_id"
   "debug": 0
 }
-nslist = None
+nslist = None # Module-global for namespace list and allowing podfilter() to use it during filtering.
 # Simple pod filtering
 def podfilter(p):
   if not nslist: print("Error: nslist is not set !!!", file=sys.stderr); exit(1)
@@ -48,7 +48,8 @@ def podfilter(p):
         return 0
   return 1
     
-# Load and Merge/aggergate Multi Cluster Pod List
+# Load and Merge/aggergate Multi Cluster Pod List.
+# Also does filtering if cfg.nsfilter is set.
 # Create a linear list of pods from one or more cluster pod listings gotten with (-A = all namespaces):
 #     kubectl get pods -A -o json
 # Note: Info has to be  ...
@@ -84,31 +85,37 @@ def mc_pods(cfg, **kwargs):
   if kwargs.get("debug"): print("Got "+str(len(mcpods_all))+" pods");
   return mcpods_all
 
+############ Condensed / Summary Pod Info (w. images in standard format) ######################
 
-# Lowest level image status collection from Pod status (containerStatuses / initContainerStatuses)
-# Create object with members
+# Collect image information from Pod status sections (containerStatuses / initContainerStatuses).
+# Create "standard image" object with members:
 # - img - Image basename (w/o) tag
 # - imgfull - Image full path with tag
 # - tag tag part of image URL (part after ':')
 # - sha256sum
+# 
+# The normalization to standard format helps in comparison, cross-correlation later.
+# 
 # ## Additional notes
 # In the containerStatuses node "state" member, state.waiting maybe set with:
+# ```
 # "state": {
 #      "waiting": {
 #          "message": "Back-off pulling image \"gcr.io/spgovusm1-saas-gke1/spgovusm1saasgke1/cert-manager/cert-manager-ctl:v1.9.1-20220914\"",
 #          "reason": "ImagePullBackOff"
 #      }
 #  }
+# ```
 # And additionally "imageID": "", (empty, luckily still splittable/parseable string). Skip these cases !
-def contstat_get_img(cs):
+def contstat_get_img(cs): # cs = container status (sub-node)
   e = {}
   # No imageID (for e.g. state.waiting = {message: "Back-off pulling image...", reason: "ImagePullBackOff"})
-  if not cs.get("imageID"): print("Pod w/o imageID/SHA256 ", file=sys.stderr); return None
-  ii = cs.get("image").split(":")
-  ii2 = cs.get("imageID").split("@")
+  if not cs.get("imageID"): print("Pod '*Statuses' node w/o imageID/SHA256 !", file=sys.stderr); return None
+  ii  = cs.get("image").split(":")   # separate image and tag
+  ii2 = cs.get("imageID").split("@") # separate image and img id sha (still has "sha256:" prefix, get rid of this below)
   if ii[0] != ii2[0]:
     #print("Images not same: '"+ii[0]+"' vs. '"+ii2[0]+"'")
-    if ii2[0].find("sha256", 0) < 0: ii2 = [ None, ii2[0] ]
+    if ii2[0].find("sha256", 0) < 0: ii2 = [ None, ii2[0] ] # NOTE: ii2[1].find ? or is this for failed split (no ':') ?
     #return
   #else: print("Images ARE same !")
   if len(ii2) == 1:
@@ -120,15 +127,17 @@ def contstat_get_img(cs):
   e["tag"] = ii[1]
   e["sha256sum"] = ii2[1].replace("sha256:", "")
   # Must have basename for image: os.path.basename(path) or RE or split()
-  e["imgbn"] = os.path.basename(e["imgfull"])
+  e["imgbn"] = os.path.basename(e["imgfull"]) # tag remains
   # Validate state.waiting
   #if not e["sha256sum"]: print("Encountered emty sha for ", e); exit(1)
   #m = e["imgfull"]
   return e
 
+# Extract image information from a K8S Pod entry (Sections: "containerStatuses", "initContainerStatuses").
+# Use 1 or 2 calls to the lower level contstat_get_img() to actually collect image details.
 def podstat_get_imgs(p): #, pod
   st = p.get("status")
-  if not st: print("No status available", file=sys.stderr); return None
+  if not st: print("No status branch available", file=sys.stderr); return None
   rcs = st.get("containerStatuses") # real
   ics = st.get("initContainerStatuses")
   # isinstance()
@@ -137,7 +146,7 @@ def podstat_get_imgs(p): #, pod
     n = m.get("name", "")
     ns = m.get("namespace", "") # Also "ns" ()
     print("One of essential status (rcs, ...) sections missing ("+ns+"/"+n+")!", file=sys.stderr); return
-  iiset = [] # Image Info
+  iiset = [] # Image Info for all images in pod (1 or more)
   for ci in rcs:
     i = contstat_get_img(ci)
     if not i: continue
@@ -169,7 +178,9 @@ def pod_imgstats(p):
   # print(json.dumps(pod, indent=2))
   return pod
 
-# Collect pods from multiple clusters and extract the image info from them
+####################################
+
+# Collect pods from multiple clusters and extract the image info from them.
 # (for later stats or analysis).
 def imglist(cfg, **kwargs):
   mcpods = mc_pods(cfg, **kwargs)
