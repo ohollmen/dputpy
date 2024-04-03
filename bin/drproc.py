@@ -281,8 +281,42 @@ def gendoc(mcfg, servs):
   if not tmpl: usage("No template loaded from: "+mcfg["tmplfn"]+"")
   out = tmpl.render(**tpara)
   print(out);
-
-ops = {"doc": gendoc, "script": gendoc}
+# Output templated content (One template applied to all serv items)
+# Try: ... tmpl "<h2>{{ title }}</h2>\n<p>{{ title }} is a service to ...</p>"
+# License Expiry (time of the year) Company Internal Contact Vendor External Contact Vendor Licensing Info, The way of adding License
+# The template can be configured in:
+# - Inlined template string in cfg.servtmpl
+# - found in file named in cfg.servtmplfn
+# See: https://docs.python.org/3/library/os.path.html
+def template_serv(mcfg, servs):
+  tmplstr = mcfg.get("servtmpl") or ""
+  tmplfn  = mcfg.get("servtmplfn") or ""
+  
+  if os.environ.get("TMPL_FN"): tmplfn = os.environ.get("TMPL_FN")
+  if tmplfn: tmplstr = open(tmplfn, "r").read()
+  modfn = os.environ.get("MODEL_FN")
+  if modfn and os.path.exists( modfn ):
+    modstr = open(modfn, "r").read()
+    servs = json.loads(modstr)
+    if not isinstance(servs, list): usage("data found in JSON is not a list/array !")
+  dputil.tmpl_gen(servs, tmplfn)
+  return
+  if tmplfn: tmplstr = open(tmplfn, "r").read()
+  #alen = len(sys.argv)
+  #if alen > 2: tmplstr = sys.argv[2]; # print("Len is "+str(alen));
+  template = jinja2.Template(tmplstr)
+  for s in servs:
+    out = template.render(**s);
+    # TODO: Possibly reject absolute paths. os.path.exists()
+    fn = s.get("fn");
+    if fn:
+      dn = os.path.dirname(fn)
+      #os.mkdir(dn, 0o755)
+      print("Create: "+dn)
+    # Default: print to stdout
+    else:
+      print(out)
+ops = {"doc": gendoc, "script": gendoc, "tmpl": template_serv}
 if __name__ == '__main__':
   rev = 0 # OR TODO: from CLI
   rev_env = os.environ.get("DR_REVERSE")
@@ -291,6 +325,7 @@ if __name__ == '__main__':
   ### 
   appinit() # gcmds.*
   mcfg_fn = "./dr.prod.conf.json"
+  #if os.environ.get("")
   mcfg = dputil.jsonload(mcfg_fn)
   if not mcfg: usage("No main config loaded (from: "+mcfg_fn+")");
   if (not rev) and mcfg.get("reverse"): rev = 1

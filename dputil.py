@@ -100,6 +100,11 @@ def tmpl_gen(arr, tmplfn, **kwargs):
   template = jinja2.Template(tmplstr) # Once (for all items) !
   altroot = kwargs.get("path")
   debug   = kwargs.get("debug")
+  # Allow ctx-object to wrap the array (change checks / expectations above), possibly trigger on isinstance(arr, dict)
+  # TODO: Define possible merging from ctx ? In case of ctx, there are multiple scenarios
+  # - template may loop (leave this to normal tmpl expansion)
+  # - 
+  #itemsattr = kwargs.get("itemsattr")
   for it in arr:
     out = template.render(**it);
     # TODO: Possibly reject absolute paths. os.path.exists()
