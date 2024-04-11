@@ -54,6 +54,7 @@ def podfilter(p):
 #     kubectl get pods -A -o json
 # Note: Info has to be  ...
 # Pod listings are expected to be stored in files (created earlier e.g. with the help of podlist.py "gencmds" subcommand).
+# Return raw kubernetes cluster pod lists aggregated into one.
 def mc_pods(cfg, **kwargs):
   cs = cfg.get("clusters")
   mcpods_all = []
@@ -128,6 +129,10 @@ def contstat_get_img(cs): # cs = container status (sub-node)
   e["sha256sum"] = ii2[1].replace("sha256:", "")
   # Must have basename for image: os.path.basename(path) or RE or split()
   e["imgbn"] = os.path.basename(e["imgfull"]) # tag remains
+  # Add plain "bn" to be able to correlate by it
+  bn_tag = e["imgbn"].split(":");
+  e["bn"] = bn_tag[0] # e.g. for maint. correlation
+  
   # Validate state.waiting
   #if not e["sha256sum"]: print("Encountered emty sha for ", e); exit(1)
   #m = e["imgfull"]
@@ -182,6 +187,7 @@ def pod_imgstats(p):
 
 # Collect pods from multiple clusters and extract the image info from them.
 # (for later stats or analysis).
+# Return the condensed pod image info list (fraction of size of raw k8s data)
 def imglist(cfg, **kwargs):
   mcpods = mc_pods(cfg, **kwargs)
   #if kwargs.get(""): print(json.dumps(mcpods, indent=1)) # Pods

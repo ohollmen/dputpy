@@ -22,7 +22,8 @@ cfg = dputil.jsonload(cfgfn)
 imgidx = {} # Counts / Stats
 
 # https://cloud.google.com/storage/docs/wildcards
-def gen_data_cmds(): # cfg
+def gen_data_cmds(): # args
+  # cfg = args.get("cfg")
   cs = cfg.get("clusters")
   initcmd = cfg.get("initshellcmd", ""); itmpl = None
   if re.search(r'\{\{', initcmd): itmpl = jinja2.Template(initcmd)
@@ -48,6 +49,7 @@ def iscoll(pod):
     if not iitem: imgidx[iname] = 1
     else: imgidx[iname] += 1
   return
+
 def servernorm(o):
   url = o.get("imgfull", "")
   url2 = o.get("img", "")
@@ -59,8 +61,8 @@ def servernorm(o):
 # - rundate,
 # - imgfull (path),
 # - tag (image tag part NEW)
-# - sha256sum (digest), this is really the column matching K8S Pod dump "imageID"
-# - image_id (Not used)
+# - sha256sum (digest), this is really the column matching K8S Pod dump "imageID" (json/yaml prop)
+# - OLD: image_id (Not used)
 # Create member "imgbn" for the purpose of later correlating images soly by their basenames.
 # Strip any (optional) "sha256:" prefix from 
 # Return allowed images list (AoO, any indexing must be done by caller).
@@ -94,6 +96,9 @@ def allowlist_load(cfg, **kwargs):
     if not a.get("imgfull"): a["imgfull"] = a.get("img") + ':' + a.get("tag")
     # "imgbn" should be basename + tag
     a["imgbn"] = os.path.basename(a.get("imgfull")) # ... with tag. Very useful for (performing) cross-correlation.
+    # Additionally "bn" (from "imgbn")
+    bn_tag = a["imgbn"].split(":");
+    a["bn"] = bn_tag[0] # e.g. for maint. correlation
   return allow
 
 # Check list of all images against the list of allowed images.
@@ -117,7 +122,7 @@ def allow_check(allimg, allow_idx, **kwargs):
   chklvl = kwargs.get("chklvl") or 1
   if (chklvl != 1) and (chklvl != 2): chklvl = 1
   if debug: printf("Chose check level: "+chklvl) # STDERR !
-  for pis in allimg: # Pod image stats
+  for pis in allimg: # Pod image stats (created in kubu.imglist())
     imgs = pis["imgs"] # 1 or more images
     for i in imgs:
       #if not i.get("img"): print("img member not present ", i); continue
@@ -178,7 +183,8 @@ def allow_report(cres):
     print("- "+fixi.get("img", "")+" ("+fixi.get("sha256sum", "")+")");
     print("  - Cluster: "+fixi.get("cluster")+",  NS: "+fixi.get("ns")+",  Podname: "+fixi.get("name")+"");
 
-def imgstat():
+def imgstat(): # args
+  # cfg = args.get("cfg")
   allimg = kubu.imglist(cfg, icollcb=iscoll);
   print(json.dumps(allimg, indent=1))
   # Gather count stats here (# images per pod)
@@ -191,7 +197,8 @@ def imgstat():
   print("cntstats: "+ json.dumps(cntstat), file=sys.stderr);
   return 0
 
-def allpods():
+def allpods(): # args
+  # cfg = args.get("cfg")
   ccnt = len(cfg.get("clusters"))
   mcpods = kubu.mc_pods(cfg)
   # Filter by ns
@@ -204,7 +211,9 @@ def allowlist_show():
   allow = allowlist_load(cfg)
   print(json.dumps(allow, indent=1))
   print(str(len(allow))+ " Allowed items", file=sys.stderr)
-def check():
+# 
+def check():# args
+  # cfg = args.get("cfg")
   allimg = kubu.imglist(cfg, icollcb=iscoll, filter=1, debug=0); # print(json.dumps(imgidx, indent=1))
   allow = allowlist_load(cfg)
   norm = 0
@@ -214,14 +223,26 @@ def check():
     for pis in allimg: xform.xform(pis.get("imgs", []), servernorm)
     #print(json.dumps(allimg, indent=1)); exit(1)
     xform.xform(allow, servernorm) ; # print(json.dumps(allow, indent=1)); # exit(1)
+  # TODO: roll out / embed (for no-dep) ?
   allow_idx = indexer.index(allow, "imgbn") # OLD: image / NEW-1: imgfull NEW2 imgbn
   #print(json.dumps(allow_idx, indent=1)); # exit(1) # INDEX
   # Allow-detection. Note: Uses the whole-list
   chklvl = cfg.get("checklevel") or 1
   cres = allow_check(allimg, allow_idx, debug=0, chklvl=chklvl)
+  # Populate maintainer to cres (see allow_check() for iter.) ???
+  allow_idx_bn = indexer.index(allow, "bn") # By "bn" for !
+  # TODO: resolve by "bn" on-the-fly in allow_report()
+  #for pis in allimg:
+  #  imgs = pis.get("imgs"); # pis["imgs"]
+  #  for i in imgs:
+  #    bn = i.get("bn") # "bn" NEW: plain bn w/o tag
+  #    #iname = i.get("imgbn") # bn + tag
+  #    ai = allow_idx_bn.get(bn)
+  #    
+  #    
   ########## Reporting (disallowed) #################
-  #if opts.get("json"): print(json.dumps(cres, indent=1))
-  allow_report(cres)
+  #if cfg.get("json"): print(json.dumps(cres, indent=1))
+  allow_report(cres) # TODO: pass allow_idx_bn
   return 0
 
 def usage(msg):
@@ -248,12 +269,16 @@ if __name__ == '__main__':
   op = sys.argv.pop(0); # x = x[1:]
   if not op: usage("No subcommand/op given");
   if not ops.get(op): usage("No subcommand "+op+" available");
-  #parser = argparse.ArgumentParser(description='Pod image checker')
-  #parser.add_argument('index',  default=0, help='Output index, no final') # type=ascii
-  #parser.add_argument('all',  default=0, help='List all pods, do not filter') # for allpods/podslist
-  #global args
-  #args = vars(parser.parse_args())
-  #args[op] = op
-  ops[op]["cb"]()
+  # TODO: Load config here
+  # cfg = dputil.jsonload(cfgfn)
+  parser = argparse.ArgumentParser(description='Pod image checker')
+  parser.add_argument('index',  default=0, help='Output helper index, not the final data.') # type=ascii
+  parser.add_argument('all',    default=0, help='List all pods, do not filter') # for allpods/podslist
+  parser.add_argument('json',   default=0, help='Output as JSON (as applicable for action)')
+  global args
+  args = vars(parser.parse_args())
+  args[op] = op
+  args.cfg = cfg;
+  ops[op]["cb"]() # args
   sys.exit(0)
 
