@@ -1,4 +1,4 @@
-#!env python3
+#!/usr/bin/env python3
 # # Generate output by Jinja 2 templating from a parameter-model.
 # Implements a simple free-form templating "methodology" by:
 # - Model: An array-of-objects (python: list-of-dictionaries) from a JSON or YAML file
