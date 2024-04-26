@@ -29,16 +29,22 @@
 # - The documentation aspect applies especially if you are using
 #   tmplgen.py utility from outside of codebase.
 # - TODO: Consider using config file (when the support comes around)
+# - Keep first part of the file basename of all template-project associated files to the same name to have
+#   them easily recognizable as belonging together (e.g. my-proj.yaml, my-proj.txt.j2, my-proj.defaults.yaml)
 # 
 # ## Roadmap
 # - Allow merging default values (one global set of defaults) to model objects when parameter is missing
+#   (config/cl-param: defaultsfn). This shortens and simplifies the model significantly.
 # - Allow plugin/callback based processing of model (e.g. defaulting, validation) by loading a python file
 # - Allow passing config file with: model, template, defaults, debug-level ...
 import dputpy.dputil as dputil
 import os
+import sys # sys.argv
 import json
 import yaml
 import argparse
+import time
+_parser = None
 
 # Load YAML or JSON "model".
 # *This* app expects the returned "handle" to be an array / list (of objects)
@@ -55,19 +61,89 @@ def load_json_or_yaml(fn):
   if not cfg: raise "No config data (dict) gotten from config file '"+fn+"'"
   return cfg
 
+# Merge defaults to all objects of items.
 def mergedefaults(items, defs):
   defkeys = defs.keys()
   for it in items:
-    
+    for dk in defkeys:
+      # Key does not exist at all (Cannot use it.get(dk))
+      if not dk in it:
+        # Note: value can be any type, must stringify
+        print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
+        it[dk] = defs[dk]
+  return
 
 def usage(msg):
   if msg: print(msg)
   # Subcomm ?
+  print("Try one of subcommands: ") # + ' '.join( ops.keys() ) )
+  for k in ops.keys():
+    print("- "+k+" - "+ops[k]["title"]);
+  print("Available command line arguments:");
+  _parser.print_help()
   exit(1);
+
+
+# Generate files by templating
+def gencontent(args):
+  # if not args: usage("gencontent: Must have args !")
+  tmplfn  = args.get("tmplfn", "")
+  modelfn = args.get("modelfn", "")
+  path    = args.get("path", "")
+  debug   = args.get("debug", "")
+  if not tmplfn: usage("gencontent: Must have tmplfn")
+  #OLD:modstr = open(modfn, "r").read(); items  = json.loads(modstr) # Revive ?
+  items = load_json_or_yaml(args.get("modelfn")) # Load model items
+  if not isinstance(items, list): usage("loading the model(file) did not produce an array !! Make sure model contains an array (at top level) ")
+  # Validate ofn ?
+  #### Merge Defaults ??? #######
+  if args.get("defaults"):
+     #mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
+     mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
+  #for it in items: ...
+  #OLD:tmplstr = open(tmplfn, "r").read() # Revive ?
+  # Use dputpy templating. Loop through items, produce
+  retarr = dputil.tmpl_gen(items, tmplfn, path=path, debug=debug)
+  # When returning data, items / retarr has a new potentially valuable member "useofn"
+  rc = retarr if args.get("retdata") else 0
+  return rc
+
+# Generate diff commands to compare:
+# - Old output in "established eare (Combine "path" + "ofn")
+# - New tentative/scratch outpute generated in a temporary/scratch path
+# The scratch path will reside under temp (and will currently not be cleaqned up)
+def gendiff(args):
+  # Patch "path" to scratch path, Call gencontent with that, diff to originals
+  oldtmp = args.get("path")
+  # Create subdir (time.time() returns floating point !!!)
+  tempdn = "/tmp/"+str(os.getpid())+"_"+str(time.time())+"/"
+  os.mkdir(tempdn, 0o755)
+  args["path"] = tempdn
+  args["retdata"] = True # 
+  args["debug"] = True # 
+  data = gencontent(args)
+  for it in data:
+    oldofn = oldtmp + "/" + it.get("ofn")
+    print("# Diff old, new(temp/tentative)")
+    print("diff "+oldofn+" "+it.get("useofn")+"")
+  return 0
+
+def modeldump(args):
+  modfn = args.get("modelfn")
+  if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
+  items = load_json_or_yaml(args.get("modelfn")) # Load model items
+  fmt = args.get("format", "")
+  if fmt == "json": print(json.dumps(items, indent=2))
+  # https://pyyaml.org/wiki/PyYAMLDocumentation
+  elif fmt == "yaml": print( yaml.dump(items, Dumper=yaml.Dumper))
+  else: print("Format not passed or not supported: '"+fmt+"'");
+  return 0
+
+# Subcommands
 ops = {
-  "gen": {},
-  "json2yaml": {},
-  "": {},
+  "gen":       {"title": "Generate Content by model using templating", "cb": gencontent},
+  "modeldump": {"title": "Dump Model in json or yaml",                 "cb": modeldump},
+  "gendiff":   {"title": "Generate Content and diff it against existing files", "cb": gendiff},
 }
 # Example of running
 # ```
@@ -77,31 +153,47 @@ ops = {
 # ```
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Template Expander / Content Generator')
-  parser.add_argument('--modelfn',  default="", help='JSON/YAML model file (array-of-objects)')
-  parser.add_argument('--tmplfn',  default="", help='Template filename (fro template to be expanded with model parameters)')
-  parser.add_argument('--path',  default="", help='Alternative top-directory path to add relative output-filename (ofn) paths to.')
+  _parser = parser
+  parser.add_argument('--modelfn',  default="", help='JSON/YAML model file (array-of-objects, i.e. list-of-dicts)')
+  parser.add_argument('--tmplfn',  default="", help='Template filename (for template to be expanded with model parameters)')
+  
+  parser.add_argument('--defaultsfn',  default="", help='Filename for default values to merge onto objects of model.')
+  
+  # Note: Must be on area where user has dir/file write accress
+  parser.add_argument('--path',  default="", help='Alternative top-directory (prefix) path to add relative output-filename (ofn) paths to.')
   # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-  parser.add_argument('--debug', default=False,  action=argparse.BooleanOptionalAction, help='Debug the templating process')
-  #parser.set_defaults(debug=False)
-  #parser.add_argument('--format',  default="", help='Output format (for dumping), json or yaml')
+  parser.add_argument('--debug', default=False,  action=argparse.BooleanOptionalAction, help='Trigger verbose output for the templating process')
+  #DONOTUSE:parser.set_defaults(debug=False)
+  parser.add_argument('--format',  default="", help='Output format (for subcommand modeldump, use: json or yaml)')
   #parser.add_argument('--xx',  default="", help='')
   #parser.add_argument('--xx',  default="", help='')
+  
+  if len(sys.argv) < 2: usage("Subcommand missing - please pass subcommand as first arg (see choices below ...).")
+  op = sys.argv.pop(1)
+  if not op: usage("No subcommand given (as first arg)")
+  if not ops.get(op): usage("No subcommand '"+op+"' available");
+  
   args = vars(parser.parse_args())
   modfn  = args.get("modelfn", ""); # Model/parameters
   tmplfn = args.get("tmplfn", ""); # Template filename
-  path   = args.get("path", ""); # Template filename
-  debug  = args.get("debug", ""); # Template filename
+  deffn  = args.get("defaultsfn", ""); # Defaults filename
+  path   = args.get("path", ""); # Alternative / Prefix path to generate content to
+  debug  = args.get("debug", ""); # Verbose output
+  need_m_t ={"gen": True, "gendiff": True} # Need model and template
   # Validate !!!
-  if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
-  if not tmplfn or (not os.path.isfile(tmplfn)): usage("template filename (by --tmplfn) must be given and be a valid file!")
+  if need_m_t.get(op):
+    if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
+    if not tmplfn or (not os.path.isfile(tmplfn)): usage("template filename (by --tmplfn) must be given and be a valid file!")
+    #if 
+  if deffn and ( not os.path.isfile(deffn)): usage("Defaults filename (by --defaultsfn) must be a valid file");
   if path and not os.path.exists(path): usage("Optional root-path by --path must be a directory!")
+  # Load defaults if present (here or later)
+  if deffn:
+    args["defaults"] = load_json_or_yaml(deffn)
+    if not isinstance(args.get("defaults"), dict): usage("Defaults file must contain dict/object (no other types allowed)")
   #if not path: path = os.getcwd()
-  #OLD:modstr = open(modfn, "r").read(); items  = json.loads(modstr) # Revive ?
-  items = load_json_or_yaml(modfn) # Load model items
-  if not isinstance(items, list): usage("loading the model(file) did not produce an array !! Make sure model contains an array (at top level) ")
-  # Validate ofn ?
-  #for it in items: ...
-  #OLD:tmplstr = open(tmplfn, "r").read() # Revive ?
-  # Use dputpy templating. Loop through items, produce
-  dputil.tmpl_gen(items, tmplfn, path=path, debug=debug)
-  exit(0)
+  args["op"] = op # Add op !
+  rc = ops[op]["cb"](args)
+  exit(rc);
+
+
