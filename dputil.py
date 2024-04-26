@@ -88,7 +88,7 @@ def tmpl_multi_gen(arr, **kwargs):
     cb = kwargs.get("postcb", "")
     if cb: cb(cs, udata)
   return
-# Generate content with single template for multiple items outputting each to individual file
+# Generate content with single template for multiple items outputting each to individual file.
 # If file property is missing in each item, output all to common stdout.
 def tmpl_gen(arr, tmplfn, **kwargs):
   #
@@ -106,16 +106,19 @@ def tmpl_gen(arr, tmplfn, **kwargs):
   # - 
   #itemsattr = kwargs.get("itemsattr")
   for it in arr:
-    out = template.render(**it);
+    out = template.render(**it)
     # TODO: Possibly reject absolute paths. os.path.exists()
-    fn = it.get("ofn");
+    fn = it.get("ofn")
+    if not out: print("Warning: No content created to '"+fn+"'", file=sys.stderr)
     if fn:
       bn = os.path.basename(fn)
       dn = os.path.dirname(fn)
+      # Override path
       if altroot:
         dn = altroot+"/"+dn
         fn = altroot+"/"+fn
-      
+        if debug: print("Using path/altroot: "+altroot, file=sys.stderr)
+      # Create missing dirs (like mkdir -p)
       if not os.path.exists(dn):
         os.mkdir(dn, 0o755)
         if debug: print("Created-path: "+dn, file=sys.stderr)
@@ -125,11 +128,13 @@ def tmpl_gen(arr, tmplfn, **kwargs):
       #fh.close()
       open(fn, "w").write(out) #; fh.close()
       if debug: print("Wrote to "+fn, file=sys.stderr);
+      it["useofn"] = fn # Final choice
       #print(out)
     # Default: print to stdout
     else:
       print(out)
-  return
+  return arr
+
 def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
