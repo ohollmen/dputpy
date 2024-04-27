@@ -17,7 +17,7 @@ setup(name='dputpy', version='1.0',author='Olli Hollmen',
   #package_dir={'mypkg': 'src/mypkg'},
   package_dir={'dputpy': '.'},
   #scripts=['bin/drproc.py', 'scripts/b'],
-  scripts=['bin/drproc.py', 'bin/podlist.py', 'tmplgen.py'],
+  scripts=['bin/drproc.py', 'bin/podlist.py', 'bin/tmplgen.py'],
   #data_files=[('', [])
   #install_requires=['']
 )
