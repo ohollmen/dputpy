@@ -40,7 +40,8 @@ import markdownify
 import bs4
 
 # Module/Pkg var for API path. Set custom per your server (see trailing comments)
-# By default thee should stay relatively 
+# By default thee should stay relatively
+# This seems to be sometimes /rest/content (API 6.6.0, https://docs.atlassian.com/atlassian-confluence/REST/6.6.0/#content/{id}/child-children )
 apipath = "/rest/api/content/" # Some sites: "/confluence/..."
 headers = {"user-agent": "my-app/0.0.1", "Content-Type": "application/json"}
 # Example (JSON) config. Copying this to cfl.conf.json will give you template to start with.
@@ -187,7 +188,52 @@ def cfldoc_create_or_update(p):
   print(json.dumps(rj, indent=2))
   exit(0)
 
+# Also: /child/{type}, /descendant
+def doclist(p):
+  creds = cfg.get("creds")
+  auth = requests.auth.HTTPBasicAuth(creds["user"], creds["pass"])
+  id = 417487404 # TT
+  # id = p.get("pageid")
+  #if not id: usage("doclist: No --pageid passed (for root-document).")
+  #id = 417486ooo728 # Leaf will return "results": [], but must be visited (no other indication of leaf being leaf)
+  e = {"id": id, "children": [], "title": "Root Document"}
+  #def findc(id):
+  def findc(e):
+    id = str( e.get("id") )
+    if not e.get("children"): e["children"] = []
+    cn = e.get("children")
+    pmeth = "/child/page" # Container and leaf docs under id (not id itself)
+    #pmeth = "/descendant" # Useless, will only support "comment" 
+    para = "" # "?expand=page" # .body.VIEW";
+    r = requests.get( cfg.get("cflurl") + apipath + str(id) + pmeth + para, auth=auth)
+    j = json.loads(r.text);
+    #print(json.dumps(j, indent=2));
+    ress = j.get("results")
+    print("Got "+str(len(ress))+" children for "+ id + " - "+e.get("title"));
+    for c in ress:
+      findc(c);
+      cn.append(c)
+    return e
+  #arr = findc(id)
+  arr = findc(e)
+  cont = json.dumps(arr, indent=2)
+  ofn = "/tmp/doctree.json"
+  open(ofn, "w").write(cont);
+  print("Wrote into: "+ ofn);
+  print("TREE:"+cont)
 
+def access(p):
+  creds = cfg.get("creds")
+  auth = requests.auth.HTTPBasicAuth(creds["user"], creds["pass"])
+  id = 417487404 # TT
+  # id = p.get("pageid")
+  pmeth = "/restriction/byOperation"
+  #pmeth = "/descendant" # Useless, will only support "comment" 
+  para = "" # "?expand=page" # .body.VIEW";
+  r = requests.get( cfg.get("cflurl") + apipath + str(id) + pmeth + para, auth=auth)
+  j = json.loads(r.text);
+  print(json.dumps(j, indent=2));
+  
 # For Create/Update
 para_base = {
   "type":"page",
@@ -206,8 +252,12 @@ def usage(msg):
   print("Try one of subcommands: "+ ' '.join( ops.keys() ) )
   exit(1)
 
-ops = {"new": cfldoc_create_or_update, "update": cfldoc_create_or_update, # "conv": ..., "help": ..., "cfl2md": ...,
+ops = {
+  "new": cfldoc_create_or_update,
+  "update": cfldoc_create_or_update, # "conv": ..., "help": ..., "cfl2md": ...,
   "cflhtml": cflpage_read, # "md2html": ...
+  "doclist": doclist,
+  "access": access
 }
 if __name__ == "__main__":
   # Load main config
