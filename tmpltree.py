@@ -135,9 +135,11 @@ def copyfiles(cfg, files, **kwargs):
 # Return true values 1 and up for errors (e.g. dir is a file or creation fails).
 def ensure_path(dn, **kwargs):
   exists = os.path.exists(dn)
-  isdir = os.path.isdir(dn)
+  isdir  = os.path.isdir(dn)
   # Check: ... As directory
-  if exists and isdir: return 0
+  if exists and isdir:
+    #print("IS-A-DIR: "+dn);
+    return 0
   if exists: print("PATH-ERROR: Is a file: "+dn+" expected a dir or nothing"); return 1
   if (not exists) : # or (isdir)
     if kwargs.get("debug"): print("Must create "+dn)
@@ -148,15 +150,18 @@ def ensure_path(dn, **kwargs):
       #Path(dn).mkdir(parents=True, exist_ok=True)
     except OSError as error: #  
       print("PATH-ERROR: Could not create path: "+dn+" - "+str(error))
-      return 1
-  return 0
+      return 2
+    print("Created path "+dn+" fine");
+    return 0
+  return 3
 # Map list of templates files from source tree (travroot) to 
 def map_files(cfg, fnames, **kwargs): # 
   travroot = cfg.get("travroot")
   if not travroot: raise "No travroot in config"
   tgtroot = cfg.get("tgtroot")
   if not tgtroot: raise "No tgtroot in config"
-  if not fnames: raise "No files"
+  if not fnames: raise "No files passed"
+  
   p = cfg.get("params")
   # ... and object
   if not p: raise "No parameters for templating !"
@@ -170,13 +175,14 @@ def map_files(cfg, fnames, **kwargs): #
   for fn in fnames:
     # Extract relative path to map/append to tgtroot
     relp = os.path.relpath(fn, travroot) # OLD: root, travroot
-    tgtpath = tgtroot + relp # + "/"
+    tgtpath = tgtroot + "/" + relp # + "/" (more robust w. "/")
     debug and print("# relpath: " + relp + " => tgtpath: " + tgtpath)
     # Check dir of tgtpath
     dn = os.path.dirname(tgtpath)
     #print("TGT-DIR: "+dn)
     derr = ensure_path(dn)
-    if derr: continue
+    if derr: print("Could not ensure output path presence/creation!"); continue
+    if debug: print("Ensure_path-res: "+str(derr));
     suff = "" # None stringifies to 'None'
     ocont = ""
     # Extract file suffix for advanced skip-logic
@@ -184,11 +190,13 @@ def map_files(cfg, fnames, **kwargs): #
     # OR import pathlib; pathlib.Path('file.yml').suffix == '.yml'
     # OR bn.split(".")[-1] OR m = re.search('\.\w+$', fn) # ... ,flags=re.IGNORECASE
     #suff = relp.split(".")[-1]
-    m = re.search('\.(\w+)$', fn)
+    m = re.search(r'\.(\w+)$', fn) # w/o r ... SyntaxWarning: invalid escape sequence '\.'
     if m and m[1]: suff = m[1]
-    debug and print("Suffix: '"+str(suff)+"' ("+relp+")");
+    debug and print("Suffix: '"+str(suff)+"' ("+relp+")")
+    if suff and excsuff.get(suff): ocont = cont; stats["excsuffcnt"] += 1; print("Exclude "+fn+" by suffix"); continue
     # Need import shutil. ensure_path() already executed !!!
     if copyonly:
+       if debug: print("Copy only ("+fn+")");
        shutil.copyfile(fn, tgtpath) # Returns tgtpath ?
        stats["copycnt"] += 1 # Update stats
        continue
@@ -204,18 +212,19 @@ def map_files(cfg, fnames, **kwargs): #
         else:
           tmpl = jinja2.Template(cont)
           ocont = tmpl.render(**p)
-          debug and print("Gen'd "+str(len(ocont)) + " B of content");
+          debug and print("Gen'd "+str(len(ocont)) + " B of output content from tmpl of "+str(len(cont))+" B");
         stats["bytecnt"] += len(ocont)
         stats["filecnt"] += 1
       except Exception as err:
         print("Error in Template expansion: Could not create content from: "+ fn + " - "+str(err) )
         stats["except"] += 1
         stats["exfiles"].append(fn)
-    # else:
+    else:
+      print("No templating in effect ("+fn+")");
     #   
     if runtmpl and save:
       debug and print("Should save output: "+tgtpath);
-      debug and print(ocont);
+      (debug and (debug > 4)) and print(ocont);
       # Save-as
       try:
         # With "wb": TypeError: a bytes-like object is required, not 'str'
@@ -225,7 +234,7 @@ def map_files(cfg, fnames, **kwargs): #
   return stats
 # Example/testbed of using template tree mapper
 if __name__ == "__main__":
-  cfgfn = os.environ["TMPLTREE_CONFIG"] or "./tmpltree.conf.json"
+  cfgfn = os.environ.get("TMPLTREE_CONFIG") or "./tmpltree.conf.json"
   # Example config
   cfg = {"travroot": "/etc", "params": {"foo": 1}, "tgtroot": "/tmp/gentest/",
     "check": 1, "excsuff": {"load": 1, "properties": 1, "md": 1}}
@@ -238,13 +247,17 @@ if __name__ == "__main__":
   # Choose files
   fnames = cfg.get("files")
   if fnames: fnames = explicit_files(cfg)
-  fnames = find_files(cfg)
+  else: fnames = find_files(cfg)
   # Preferably filter files down in here to not run templating on files
   # that are not actually templates. This should not hurt anything, but
   # occasionally might trigger (e.g.) template syntax errors when template
   # parser thinks it has found a template fragment, but pattern is actually
   # just part of "other file" syntax.
   #print(json.dumps(fnames, indent=2))
-  stats = map_files(cfg, fnames, runtmpl=1, save=1)
+  mopts = {"runtmpl": 1, "save": 1}
+  td = os.environ.get("TMPLTREE_DEBUG")
+  if td: mopts["debug"] = int(td)
+  print("Run mapping", mopts);
+  stats = map_files(cfg, fnames, **mopts) # runtmpl=1, save=1
   print(json.dumps(stats, indent=2))
   print("Wrote all files to: "+cfg.get("tgtroot"));
