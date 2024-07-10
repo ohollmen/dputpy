@@ -60,13 +60,12 @@ def task_mod_type(t): # t = Task
   if t.get("setup")    or t.get("ansible.builtin.setup"): return "setup"
   if t.get("template")    or t.get("ansible.builtin.template"): return "template"
   if t.get("authorized_key")    or t.get("ansible.builtin.authorized_key"): return "authorized_key"
-  # 
   if t.get("stat")    or t.get("ansible.builtin.stat"): return "stat"
-  # set_fact
   if t.get("set_fact")    or t.get("ansible.builtin.set_fact"): return "set_fact"
   if t.get("command")    or t.get("ansible.builtin.command"): return "command"
   # Hmm, NOT a module: https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_delegation.html
   # if t.get("local_action")    or t.get("ansible.builtin.local_action"): return "local_action"
+  if t.get("find")    or t.get("ansible.builtin.find"): return "find"
   return
 
 def ispb(d):
