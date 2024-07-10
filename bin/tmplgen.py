@@ -44,6 +44,7 @@ import json
 import yaml
 import argparse
 import time
+import copy # copy.deepcopy()
 _parser = None
 
 # Load YAML or JSON "model".
@@ -72,6 +73,33 @@ def mergedefaults(items, defs):
         print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
         it[dk] = defs[dk]
   return
+
+def mergearrays(items, defs, attr):
+  # Check
+  if not isinstance(items, list): print("No items in array"); return 1
+  if not isinstance(defs, dict): print("No defs in dict"); return 2
+  if not attr: print("No (array) attr (to merge) given"); return 3
+  if not defs.get(attr): print("No attr in defs dict"); return 4
+  
+  arr2 = defs.get(attr);
+  if not isinstance(items, list): print("No attr "+attr+" of type list in defs dict"); return 5
+  if len(arr2) < 1: print("No array items in defs["+attr+"] - nothing to merge"); return 6
+  for it in items:
+    arr_it = it.get(attr)
+    if not arr_it:
+      # import copy # copy.deepcopy(data)
+      #it[attr] = [] # Fill in empty in hopes of merge
+      it[attr] = copy.deepcopy(arr2) # Deep copy defs (arr2)
+      continue
+    # Loop arr. Which is longer ? Drive by defaults (defs should not influence beyound
+    # its len).
+    i = 0
+    arr_it_len = len(arr_it)
+    for dob in arr2:
+      if i >= arr_it_len: break
+      if not it.get(attr)[i]: it[attr][i] = copy.deepcopy(dob)
+      
+  return 0
 
 def usage(msg):
   if msg: print(msg)
