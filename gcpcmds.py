@@ -74,7 +74,8 @@ tmpls_mirec = [
   
   { "id": "mi_list", "title": "Choose recent / latest machine image for recovery (Consider: | grep selfLink )", # Note: See the format of --source-machine-image for next command. 
   # TODO: Add --project {{ projid }}
-  "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink" },
+  "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink",
+  "outvar": "MI_NAME"},
   { "id": "vmi_restore_mi", "title": "Create VM from MI backup", # Note: the machine to bring up may not exist and cannot be looked up to derive e.g zone
   # TODO: destinat. zone B - derive from hnode, which is derived from (selfLink (has apiprefix) ? basename in "name", could use as srcimg )
   # projects/myproj-vpc/regions/us-west1/subnetworks/mine-usw1
@@ -82,7 +83,8 @@ tmpls_mirec = [
   "tmpl": "gcloud beta compute instances create {{ vmname_d }} " + \
    " --project {{ projid }} --zone {{ zone_b }} " + \
    " --subnet projects/{{ netprojid }}/regions/{{ region_b }}/subnetworks/{{ destsubnet }} " + \
-   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }}" },
+   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }}",
+   },
 ]
 
 tmpls_ssrec = [
@@ -101,7 +103,8 @@ tmpls_ssrec = [
   { "id":"ss_list_recent", "title": "Choose recent / latest snapshot (Latest first, | grep '\"name\"' for brevity)",
   # github-us-east1-b* NOT supp: --zone {{ zone_a }}
   # # Must have --project {{ projid }}
-  "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'" },
+  "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'",
+  "outvar":"SS_NAME"},
   { "id":"disk_ss_create", "title": "Extract disk from VM Snapshot",
   # ...of A (to dest zone - zone of B). Disk name by conv. same as VM. Shapshot policy should come from policy of B / region B
   # Policies can be found from Snapshots => SS Schedules. Note: THIS does NOT have device name param. Cannot use --project (is embedded in --source-snapshot path) Manual says it can.
@@ -204,6 +207,8 @@ def fillin_set(tset, p, **kwargs):
     template = jinja2.Template(t["tmpl"])
     #t["out"] += ("# "+ t["title"]+"\n"+t["tmpl"] + "\n")
     t["out"] = template.render(**p)
+    ov = t.get("outvar")
+    if ov: t["out"] = ov+"=`"+t["out"]+"`"
     # TODO: fillin(t, p) # Check deepcopy() state before ena !!!
     t["errchk"] = "if [ $? -ne 0 ]; then echo 'Error during op: "+t.get("title")+"'; exit 1; fi\n"
   #if kwargs.get(""):

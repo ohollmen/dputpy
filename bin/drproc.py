@@ -76,7 +76,8 @@ def mi_restore(s, mcfg):
   p2 = {
     #"projid": s.get("projid"),
     # "srcimg": s.get("haimg") # Does not scale to rev.
-    "srcimg": sh.get("hname") + '-' + mcfg.get("isodate") # Always Reg. A (source). OLD: dputil.isotime(date=1)
+    #"srcimg": sh.get("hname") + '-' + mcfg.get("isodate") # Always Reg. A (source). OLD: dputil.isotime(date=1)
+    "srcimg": "${MI_NAME}"
   }
   p = extend([ gentpara(s), p2 ])  
   # Order: netprojid in
@@ -139,8 +140,8 @@ def ss_restore_disk(s, mcfg):
   p2 = {    
     #OLD: "snapname": s.get("snapname"), # Env A snapshot, For now from s
     "diskname_d": s.get("hapair")[1],
-    "snapname": "REPLACE_W_SNAPSHOT_NAME",
-    
+    #"snapname": "REPLACE_W_SNAPSHOT_NAME",
+    "snapname": "${SS_NAME}",
     "rpols": sss,
     #PREPOP:"apiprefix": "https://compute.googleapis.com/compute/v1/",
     "devname": destdevname

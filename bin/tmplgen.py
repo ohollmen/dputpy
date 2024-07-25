@@ -63,9 +63,10 @@ def load_json_or_yaml(fn):
   return cfg
 
 # Merge defaults to all objects of items.
-def mergedefaults(items, defs):
+def items_mergedefaults(items, defs):
   defkeys = defs.keys()
   for it in items:
+    # Single item it
     for dk in defkeys:
       # Key does not exist at all (Cannot use it.get(dk))
       if not dk in it:
@@ -74,18 +75,19 @@ def mergedefaults(items, defs):
         it[dk] = defs[dk]
   return
 
-def mergearrays(items, defs, attr):
+def items_mergearrays(items, defs, attr):
   # Check
   if not isinstance(items, list): print("No items in array"); return 1
   if not isinstance(defs, dict): print("No defs in dict"); return 2
   if not attr: print("No (array) attr (to merge) given"); return 3
   if not defs.get(attr): print("No attr in defs dict"); return 4
-  
   arr2 = defs.get(attr);
+  
   if not isinstance(items, list): print("No attr "+attr+" of type list in defs dict"); return 5
   if len(arr2) < 1: print("No array items in defs["+attr+"] - nothing to merge"); return 6
   for it in items:
     arr_it = it.get(attr)
+    # uselen = len(arr_it) if len(arr2) > len(arr_it) else len(arr2) # Min of 2
     if not arr_it:
       # import copy # copy.deepcopy(data)
       #it[attr] = [] # Fill in empty in hopes of merge
@@ -126,8 +128,8 @@ def gencontent(args):
   # Validate ofn ?
   #### Merge Defaults ??? #######
   if args.get("defaults"):
-     #mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
-     mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
+     #items_mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
+     items_mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
   #for it in items: ...
   #OLD:tmplstr = open(tmplfn, "r").read() # Revive ?
   # Use dputpy templating. Loop through items, produce
