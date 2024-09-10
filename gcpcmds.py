@@ -43,7 +43,7 @@ tmpls_uni = [
     "tmpl": "gcloud compute instances describe {{ vmname_d }} --format json --project {{ projid }} --zone {{ zone_b }} > {{ vmname_d }}.dr_backup.{{ isodate }}.json"
   },
   { "id": "vmi_meta", "title": "Output VM Meta info",
-    "tmpl": "gcloud compute instances describe {{ vmname_d }} --format json --project {{ projid }} --zone {{ zone_b }}" },
+    "tmpl": "gcloud compute instances describe {{ vmname_d }} --format json --project {{ projid }}{% if zone_b %} --zone {{ zone_b }}{% endif %}" },
   { "id":"vmi_list", "title":"List VMs of a Project.",
     "tmpl":"gcloud compute instances list --format json --project {{ projid }}" },
   { "id": "dns_update", "title": "Update DNS record",
@@ -73,8 +73,9 @@ tmpls_mirec = [
 
   
   { "id": "mi_list", "title": "Choose recent / latest machine image for recovery (Consider: | grep selfLink )", # Note: See the format of --source-machine-image for next command. 
-  # TODO: Add --project {{ projid }}
-  "tmpl": "gcloud compute machine-images list --format json --filter='name:{{ vmname_s }}' --limit=2  --sort-by='~creationTimestamp' --project {{ projid }} | grep selfLink",
+  # Note: OLD: --format json  + | grep selfLink. Stop doing this (has fluff/garbage), use --format 'get(name)' to get scalar, directly suitable normalized value.
+  # Addl Note:--format 'get(selfLink)' works too, but givew full https://... URL. The next template is only looking for 'name' (for the end)
+  "tmpl": "gcloud compute machine-images list --format 'get(name)' --filter='name:{{ vmname_s }}' --limit=1  --sort-by='~creationTimestamp' --project {{ projid }}", # | grep selfLink
   "outvar": "MI_NAME"},
   { "id": "vmi_restore_mi", "title": "Create VM from MI backup", # Note: the machine to bring up may not exist and cannot be looked up to derive e.g zone
   # TODO: destinat. zone B - derive from hnode, which is derived from (selfLink (has apiprefix) ? basename in "name", could use as srcimg )
@@ -83,7 +84,7 @@ tmpls_mirec = [
   "tmpl": "gcloud beta compute instances create {{ vmname_d }} " + \
    " --project {{ projid }} --zone {{ zone_b }} " + \
    " --subnet projects/{{ netprojid }}/regions/{{ region_b }}/subnetworks/{{ destsubnet }} " + \
-   " --no-address --private-network-ip {{ ipaddr }} --deletion-protection --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }}",
+   " {% if extipaddr %}--address '{{extipaddr}}'{% else %}--no-address{% endif %} --private-network-ip {{ ipaddr }} --deletion-protection --source-machine-image  {{ apiprefix }}projects/{{ projid }}/global/machineImages/{{ srcimg }}",
    },
 ]
 
@@ -102,8 +103,8 @@ tmpls_ssrec = [
   
   { "id":"ss_list_recent", "title": "Choose recent / latest snapshot (Latest first, | grep '\"name\"' for brevity)",
   # github-us-east1-b* NOT supp: --zone {{ zone_a }}
-  # # Must have --project {{ projid }}
-  "tmpl": "gcloud compute snapshots list --format json --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 3 --project {{ projid }} | grep '\"name\"'",
+  # Note: See notes on compute machine-images list (Add --format 'get(name)', Elim. grepping).
+  "tmpl": "gcloud compute snapshots list --format 'get(name)' --filter='name:{{ vmname_s }}' --sort-by '~creationTimestamp' --limit 1 --project {{ projid }} ", # | grep '\"name\"'
   "outvar":"SS_NAME"},
   { "id":"disk_ss_create", "title": "Extract disk from VM Snapshot",
   # ...of A (to dest zone - zone of B). Disk name by conv. same as VM. Shapshot policy should come from policy of B / region B
@@ -207,7 +208,9 @@ def fillin_set(tset, p, **kwargs):
     template = jinja2.Template(t["tmpl"])
     #t["out"] += ("# "+ t["title"]+"\n"+t["tmpl"] + "\n")
     t["out"] = template.render(**p)
+    ### OUTVAR ####
     ov = t.get("outvar")
+    #print("OUTVAR: "+str(ov));
     if ov: t["out"] = ov+"=`"+t["out"]+"`"
     # TODO: fillin(t, p) # Check deepcopy() state before ena !!!
     t["errchk"] = "if [ $? -ne 0 ]; then echo 'Error during op: "+t.get("title")+"'; exit 1; fi\n"
@@ -222,6 +225,10 @@ def fillin(t, p, **kwargs):
   if kwargs.get("title"): t["out"] = "# "+t.get("title")+"\n"
   template = jinja2.Template(t["tmpl"])
   t["out"] += template.render(**p)
+  ### OUTVAR ####
+  ov = t.get("outvar")
+  #print("OUTVAR: "+str(ov));
+  if ov: t["out"] = ov+"=`"+t["out"]+"`"
   #if kwargs.get("errchk"):
   t["errchk"] = "if [ $? -ne 0 ]; then echo 'Error during op: "+t.get("title")+"'; exit 1; fi\n"
   return t
@@ -230,7 +237,7 @@ def fillin(t, p, **kwargs):
 def commandseq(tset, **kwargs):
   out = kwargs.get("initstr", "")
   outarr = []
-  print("ERRCHK=" + str( kwargs.get("errchk", "N/A") ) );
+  #print("ERRCHK=" + str( kwargs.get("errchk", "N/A") ) );
   for t in tset:
     out += ("# "+ t["title"]+"\n"+t["out"] + "\n")
     if kwargs.get("errchk"): out += t.get("errchk", "") # Add error check on explicit request
