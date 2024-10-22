@@ -3,6 +3,7 @@
 import dputpy
 import json
 import os
+import sys # sys.stderr
 import dputpy.dputil as dputil
 import dputpy.gcputil as gcputil
 import dputpy.indexer as indexer
@@ -10,6 +11,7 @@ import dputpy.filefmttest as ft
 import dputpy.setops as setops
 import dputpy.clapp as clapp
 #print("Welcome to dputpy !");
+import dputpy.merger as mrg
 
 def test_yaml_parsing():
   #y = dputpy.dputil.yamlload("./tdata/dict.yaml");
@@ -85,12 +87,26 @@ def test_runparse():
   ret = dputil.run("cat /tmp/key.json", fmt='json')
   print(json.dumps(ret["data"], indent=2))
   if ret["data"].get("crv", "") == "P-256": print("Got crv = "+ ret["data"].get("crv", ""))
+def test_merge():
+  myd = {"a":1}
+  defs = {"b":2}
+  out = mrg.dict_merge_defs(myd, defs)
+  print(out)
+  arr1 = [None, {"c":3}, None, None]
+  arr2 = [{}, {"d": 4}, {}]
+  mrg.items_merge(arr1, arr2)
+  print(arr1)
+  arr1 = ["", "Yes"]
+  arr2 = ["No", ""]
+  mrg.items_merge(arr1, arr2)
+  print(arr1)
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {
   "keytest": key_testing,
   "setops": test_setops,
-  "runparse": test_runparse
+  "runparse": test_runparse,
+  "merge": test_merge
 }
 
 
