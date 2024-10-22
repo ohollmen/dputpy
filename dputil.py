@@ -243,6 +243,9 @@ def csv_write(arr, fn, **kwargs):
 # Read CSV into LoD / AoO
 def csv_load(fn, **kwargs):
   fldnames = kwargs.get("fldnames", None)
+  # For flexibility (w. simple apps w. simple config), allow fldnames
+  # passed as comma separated values (str) instead of list/array. split/parse here
+  if fldnames and isinstance(fldnames, str): fldnames = fldnames.split(",")
   sep = kwargs.get("sep", ',')
   fh = open(fn, "r")
   # restkey=None, restval=None,  dialect='excel',
