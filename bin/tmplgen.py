@@ -31,13 +31,17 @@
 # - TODO: Consider using config file (when the support comes around)
 # - Keep first part of the file basename of all template-project associated files to the same name to have
 #   them easily recognizable as belonging together (e.g. my-proj.yaml, my-proj.txt.j2, my-proj.defaults.yaml)
-# 
+# ## Running the utility
+# ```
+# bin/tmplgen.py gen --modelfn tdata/car.model.yaml --tmplfn tdata/car.json.j2 --joinfn engine:tdata/car.defaults.yaml --defaultsfn tdata/car.defaults.yaml --path /tmp/ --debug
+# ```
 # ## Roadmap
 # - Allow merging default values (one global set of defaults) to model objects when parameter is missing
 #   (config/cl-param: defaultsfn). This shortens and simplifies the model significantly.
 # - Allow plugin/callback based processing of model (e.g. defaulting, validation) by loading a python file
 # - Allow passing config file with: model, template, defaults, debug-level ...
 import dputpy.dputil as dputil
+import dputpy.merger as mrg
 import os
 import sys # sys.argv
 import json
@@ -45,6 +49,7 @@ import yaml
 import argparse
 import time
 import copy # copy.deepcopy()
+import re
 _parser = None
 
 # Load YAML or JSON "model".
@@ -65,16 +70,14 @@ def load_json_or_yaml(fn):
 # Merge defaults to all objects of items.
 def items_mergedefaults(items, defs):
   defkeys = defs.keys()
-  for it in items:
-    # Single item it
-    for dk in defkeys:
-      # Key does not exist at all (Cannot use it.get(dk))
-      if not dk in it:
-        # Note: value can be any type, must stringify
-        print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
-        it[dk] = defs[dk]
+  for it in items: mrg.dict_merge_defs(it, defs, defkeys=defkeys) # Merge Single dict-item it
   return
-
+    #for dk in defkeys:
+    #  # Key does not exist at all (Cannot use it.get(dk))
+    #  if not dk in it:
+    #    # Note: value can be any type, must stringify
+    #    print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
+    #    it[dk] = defs[dk]
 def items_mergearrays(items, defs, attr):
   # Check
   if not isinstance(items, list): print("No items in array"); return 1
@@ -103,6 +106,19 @@ def items_mergearrays(items, defs, attr):
       
   return 0
 
+# Join data (dict or list) from a json/yaml file to all items (or single dict)
+# parameter "items" passed may be list or dict (This is detected and correct path of action is taken)
+def items_join(items, member, jifn): # ji=Join item filename
+  ji = None
+  if isinstance(jifn, dict) or isinstance(jifn, list): ji = jifn
+  else: ji = load_json_or_yaml(jifn);
+  if not ji: print("No json/yaml loaded from join file "+jifn+" !");
+  if isinstance(items, list):
+    for it in items:
+      it[member] = copy.deepcopy(ji) # Make private copy !
+  elif isinstance(items, dict): # Note: items is actually single dict
+      items[member] = copy.deepcopy(ji) # Make private copy !
+  return items
 def usage(msg):
   if msg: print(msg)
   # Subcomm ?
@@ -115,17 +131,23 @@ def usage(msg):
 
 
 # Generate files by templating
+# bin/tmplgen.py
 def gencontent(args):
   # if not args: usage("gencontent: Must have args !")
   tmplfn  = args.get("tmplfn", "")
   modelfn = args.get("modelfn", "")
   path    = args.get("path", "")
   debug   = args.get("debug", "")
-  if not tmplfn: usage("gencontent: Must have tmplfn")
-  #OLD:modstr = open(modfn, "r").read(); items  = json.loads(modstr) # Revive ?
+  if not tmplfn: usage("gencontent: Must have (--tmplfn)")
+  if not modelfn  or (not os.path.isfile(modelfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
   items = load_json_or_yaml(args.get("modelfn")) # Load model items
   if not isinstance(items, list): usage("loading the model(file) did not produce an array !! Make sure model contains an array (at top level) ")
   # Validate ofn ?
+  #### NEW: Join ??? (First !) #####
+  if args.get("joinfn"):
+    ja = args.get("joinfn").split(':') # Join args (,2 max ?)
+    if not os.path.exists(ja[1]): print("File ("+ja[1]+") to join as member "+ja[0]+" does not seem to exist");
+    else: items_join(items, ja[0], ja[1]);
   #### Merge Defaults ??? #######
   if args.get("defaults"):
      #items_mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
@@ -138,10 +160,36 @@ def gencontent(args):
   rc = retarr if args.get("retdata") else 0
   return rc
 
+# Perform simple tempating: 1 param (yaml), 1 template, 1 output
+# bin/tmplgen.py gensimple --modelfn tdata/singlecar.model.yaml --tmplfn tdata/car.json.j2 --joinfn engine:tdata/car.defaults.yaml --defaultsfn tdata/car.defaults.yaml --path /tmp/ --outfn cars/chevy.json --debug
+def gensimple(args):
+  debug = args.get("debug")
+  it = load_json_or_yaml(args.get("modelfn")) # Single model item
+  if not it: usage("No dict/object model gotten");
+  if not isinstance(it, dict): usage("Model not in dict/object format for simple templating");
+  if args.get("joinfn"):
+    ja = args.get("joinfn").split(':') # Join args (,2 max ?)
+    if not os.path.exists(ja[1]): print("File ("+ja[1]+") to join as member "+ja[0]+" does not seem to exist");
+    else: items_join(it, ja[0], ja[1]); # Could have done [it]
+  #### Merge Defaults ??? #######
+  if args.get("defaults"): mrg.dict_merge_defs(it, args.get("defaults")) # , defkeys=defkeys
+  ##### OUTPUT ####
+  # Pass single item as (wrapped) array, adding property "ofn" to indicate output fn
+  ofn = args.get("outfn"); # Inject ofn, relative path
+  if ofn: it["ofn"] = ofn
+  if not it["ofn"]: usage("Simple (single) file generation requires output file (in model file (ofn) OR by CLI --outfn) !!!")
+  if re.match(r'^/', it["ofn"]): print("Warning: output fn is set to absolute path (make sure this oddity is what you want)!");
+  if debug: print("Complete simple model (w. ofn):\n"+json.dumps(it, indent=2), file=sys.stderr);
+  path = args.get("path") # or ".";
+  tmplfn = args.get("tmplfn", "")
+  debug  = args.get("debug", "")
+  retarr = dputil.tmpl_gen([it], tmplfn, path=path, debug=debug) # Pass single item in array (!!!)
+  return
+
 # Generate diff commands to compare:
 # - Old output in "established eare (Combine "path" + "ofn")
-# - New tentative/scratch outpute generated in a temporary/scratch path
-# The scratch path will reside under temp (and will currently not be cleaqned up)
+# - New tentative/scratch output generated in a temporary/scratch path
+# The scratch path will reside under temp (and will currently not be cleaned up)
 def gendiff(args):
   # Patch "path" to scratch path, Call gencontent with that, diff to originals
   oldtmp = args.get("path")
@@ -151,29 +199,42 @@ def gendiff(args):
   args["path"] = tempdn
   args["retdata"] = True # 
   args["debug"] = True # 
-  data = gencontent(args)
-  for it in data:
+  items = gencontent(args) # Call as sub-handler !
+  for it in items: # OLD: data
     oldofn = oldtmp + "/" + it.get("ofn")
     print("# Diff old, new(temp/tentative)")
     print("diff "+oldofn+" "+it.get("useofn")+"")
   return 0
 
+# TODO: Merge defaults (see gencontent() )! OR Let gencontent(args) return data, then dump !
 def modeldump(args):
-  modfn = args.get("modelfn")
-  if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
-  items = load_json_or_yaml(args.get("modelfn")) # Load model items
+  # args validation is completely done in gencontent()
+  #### OLD #####
+  #items = load_json_or_yaml(args.get("modelfn")) # Load model items
+  #if args.get("defaults"):
+  #   #items_mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
+  #   items_mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
+  #### NEW, SIMPLE ####
+  args["retdata"] = True
+  items = gencontent(args)
+  if not items: usage("Items not gotten from data content creator!");
+  #### OUTPUT/ DUMP  ####
   fmt = args.get("format", "")
   if fmt == "json": print(json.dumps(items, indent=2))
   # https://pyyaml.org/wiki/PyYAMLDocumentation
   elif fmt == "yaml": print( yaml.dump(items, Dumper=yaml.Dumper))
-  else: print("Format not passed or not supported: '"+fmt+"'");
+  else: print("Format (yaml or json) not passed or format not supported: '"+fmt+"'");
   return 0
 
 # Subcommands
 ops = {
   "gen":       {"title": "Generate Content by model using templating", "cb": gencontent},
-  "modeldump": {"title": "Dump Model in json or yaml",                 "cb": modeldump},
-  "gendiff":   {"title": "Generate Content and diff it against existing files", "cb": gendiff},
+  "modeldump": {"title": "Dump Model in json or yaml (use same parameters as gen)",                 "cb": modeldump},
+  "gendiff":   {"title": "Generate Content and diff it against existing files (curr. commands only)", "cb": gendiff},
+  # Detect template files under this path ?
+  #"": {},
+  # Simple 1:1:1 templating
+  "gensimple": {"title": "Generate Content by single dict/object, single template (single output, use --outfn to indicate output file)", "cb": gensimple},
 }
 # Example of running
 # ```
@@ -192,10 +253,12 @@ if __name__ == "__main__":
   # Note: Must be on area where user has dir/file write accress
   parser.add_argument('--path',  default="", help='Alternative top-directory (prefix) path to add relative output-filename (ofn) paths to.')
   # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-  parser.add_argument('--debug', default=False,  action=argparse.BooleanOptionalAction, help='Trigger verbose output for the templating process')
+  #  action=argparse.BooleanOptionalAction, not avail in Python 3.6.9 (Ubuntu)
+  parser.add_argument('--debug', default=False,  help='Trigger verbose output for the templating process')
   #DONOTUSE:parser.set_defaults(debug=False)
   parser.add_argument('--format',  default="", help='Output format (for subcommand modeldump, use: json or yaml)')
-  #parser.add_argument('--xx',  default="", help='')
+  parser.add_argument('--joinfn',  default="", help='Join a YAML file to model (YAML), with arg: $MEMNAME:$FILENAME')
+  parser.add_argument('--outfn',  default="", help='Output file for subcommand gensimple (relative path that appends to path given by --path)')
   #parser.add_argument('--xx',  default="", help='')
   
   if len(sys.argv) < 2: usage("Subcommand missing - please pass subcommand as first arg (see choices below ...).")
@@ -205,11 +268,12 @@ if __name__ == "__main__":
   
   args = vars(parser.parse_args())
   modfn  = args.get("modelfn", ""); # Model/parameters
-  tmplfn = args.get("tmplfn", ""); # Template filename
+  tmplfn = args.get("tmplfn", ""); # Template filename (Jinja 2 - *.j2)
   deffn  = args.get("defaultsfn", ""); # Defaults filename
   path   = args.get("path", ""); # Alternative / Prefix path to generate content to
   debug  = args.get("debug", ""); # Verbose output
-  need_m_t ={"gen": True, "gendiff": True} # Need model and template
+  #joinfn  = args.get("joinfn", ""); # Note: joinfn has member:fn notation
+  need_m_t = {"gen": True, "gendiff": True} # Need model and template
   # Validate !!!
   if need_m_t.get(op):
     if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
@@ -217,10 +281,11 @@ if __name__ == "__main__":
     #if 
   if deffn and ( not os.path.isfile(deffn)): usage("Defaults filename (by --defaultsfn) must be a valid file");
   if path and not os.path.exists(path): usage("Optional root-path by --path must be a directory!")
+  #if joinfn and not os.path.exists(joinfn): usage("Optional join filename by --joinfn does not exist!") # NOT a PLAIN FN !
   # Load defaults if present (here or later)
-  if deffn:
+  if deffn: # defaults fn present - load data here for all subcommands (to use)
     args["defaults"] = load_json_or_yaml(deffn)
-    if not isinstance(args.get("defaults"), dict): usage("Defaults file must contain dict/object (no other types allowed)")
+    if not isinstance(args.get("defaults"), dict): usage("Defaults file must contain dict/object (no other types - such as list - allowed)")
   #if not path: path = os.getcwd()
   args["op"] = op # Add op !
   rc = ops[op]["cb"](args)
