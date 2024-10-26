@@ -10,6 +10,8 @@ import dputpy.indexer as indexer
 import dputpy.filefmttest as ft
 import dputpy.setops as setops
 import dputpy.clapp as clapp
+import dputpy.bin.tmplgen as tmplgen
+
 #print("Welcome to dputpy !");
 import dputpy.merger as mrg
 
@@ -100,13 +102,27 @@ def test_merge():
   arr2 = ["No", ""]
   mrg.items_merge(arr1, arr2)
   print(arr1)
+def test_tmplgen():
+  # Base items
+  items = tmplgen.load_json_or_yaml("tdata/car.model.yaml");
+  # Defaults to merge
+  defs = tmplgen.load_json_or_yaml("tdata/car.defaults.yaml");
+  # Use the defaults file to *also* join. Either filename or already loaded dict should work
+  #tmplgen.items_join(items, "engine", "tdata/car.defaults.yaml")
+  tmplgen.items_join(items, "engine", defs); # Raw Obj/dict
+  tmplgen.items_join(items, "firingorder", [6, 1, 3, 4, 2, 5]); # Array/List
+  tmplgen.items_mergedefaults(items, defs) # Also merge to top-level
+  print(json.dumps(items, indent=2));
+  retarr = dputil.tmpl_gen(items, "tdata/car.json.j2", path="/tmp/cars-output/", debug=1)
+  return
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {
   "keytest": key_testing,
   "setops": test_setops,
   "runparse": test_runparse,
-  "merge": test_merge
+  "merge": test_merge,
+  "tmplgen": test_tmplgen,
 }
 
 
