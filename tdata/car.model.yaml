@@ -1,0 +1,10 @@
+- mfg: Volvo
+  model: stw
+  ofn: cars/volvo.json
+- mfg: Renault
+  model: Sport
+  ofn: cars/renault.json
+- mfg: Peugeot
+  model: 605
+  # TODO: Try ofn parametrization
+  ofn: cars/peugeot.json
