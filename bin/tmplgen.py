@@ -253,8 +253,8 @@ if __name__ == "__main__":
   # Note: Must be on area where user has dir/file write accress
   parser.add_argument('--path',  default="", help='Alternative top-directory (prefix) path to add relative output-filename (ofn) paths to.')
   # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
-  #  action=argparse.BooleanOptionalAction, not avail in Python 3.6.9 (Ubuntu)
-  parser.add_argument('--debug', default=False,  help='Trigger verbose output for the templating process')
+  #   not avail in Python 3.6.9 (Ubuntu)
+  parser.add_argument('--debug', default=False, action=argparse.BooleanOptionalAction, help='Trigger verbose output for the templating process')
   #DONOTUSE:parser.set_defaults(debug=False)
   parser.add_argument('--format',  default="", help='Output format (for subcommand modeldump, use: json or yaml)')
   parser.add_argument('--joinfn',  default="", help='Join a YAML file to model (YAML), with arg: $MEMNAME:$FILENAME')
