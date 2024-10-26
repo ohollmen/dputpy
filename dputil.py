@@ -89,11 +89,12 @@ def tmpl_multi_gen(arr, **kwargs):
     if cb: cb(cs, udata)
   return
 # Generate content with single template for multiple items outputting each to individual file.
-# If file property is missing in each item, output all to common stdout.
+# If output file property (ofn) is missing in each item, output all to common stdout.
+# - path - alternative / explicit root
 def tmpl_gen(arr, tmplfn, **kwargs):
   #
   if tmplfn: tmplstr = open(tmplfn, "r").read()
-  else: print("No template filename"); return
+  else: print("No template filename passed"); return
   if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return
   #alen = len(sys.argv)
   #if alen > 2: tmplstr = sys.argv[2]; # print("Len is "+str(alen));
@@ -113,7 +114,7 @@ def tmpl_gen(arr, tmplfn, **kwargs):
     if fn:
       bn = os.path.basename(fn)
       dn = os.path.dirname(fn)
-      # Override path
+      # Override path (current dir / '.')
       if altroot:
         dn = altroot+"/"+dn
         fn = altroot+"/"+fn
@@ -130,7 +131,7 @@ def tmpl_gen(arr, tmplfn, **kwargs):
       if debug: print("Wrote to "+fn, file=sys.stderr);
       it["useofn"] = fn # Final choice
       #print(out)
-    # Default: print to stdout
+    # Default: No "ofn" - print to stdout
     else:
       print(out)
   return arr
