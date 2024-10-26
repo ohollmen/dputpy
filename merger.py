@@ -11,14 +11,22 @@ def dict_merge_defs(dictn, defs, **kwargs):
   if not isinstance(dictn, dict): return None
   if not isinstance(defs, dict): return None
   defkeys = kwargs.get("defkeys") or defs.keys()
-  print("Keys driving merge (default): "+str(defkeys));
+  debug = kwargs.get("debug")
+  if debug: print("Keys driving merge (default): "+str(defkeys));
   for dk in defkeys:
     if not dk in dictn:
       # Note: value can be any type, must stringify
-      print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
+      if debug: print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr)
       dictn[dk] = defs[dk]
   return dictn
 
+# Merge 2 arrays a1 (base to merge to) and a2 (merge from)
+# - Support merges of array items that are dict or string
+# - source (a2) and dest (a1) must be of same type for merge to happen (i.e dict & dict or sting & string)
+# - When *both* are dict:
+#   - If dest is None, make a complete copy.deepcopy of source dict
+#   - (else ...) do basic defaults merge (missing in dest are copied/defaulted)
+# - When *both* are str:  merge value from source if dest value is falsy
 def items_merge(a1, a2):
   if not isinstance(a1, list): print("Not an array - array 1"); return 1
   if not isinstance(a2, list): print("Not an array - array 2"); return 1
