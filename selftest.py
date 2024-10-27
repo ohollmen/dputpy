@@ -89,19 +89,24 @@ def test_runparse():
   ret = dputil.run("cat /tmp/key.json", fmt='json')
   print(json.dumps(ret["data"], indent=2))
   if ret["data"].get("crv", "") == "P-256": print("Got crv = "+ ret["data"].get("crv", ""))
+
 def test_merge():
   myd = {"a":1}
   defs = {"b":2}
+  mrg.both_show(myd, defs)
   out = mrg.dict_merge_defs(myd, defs)
   print(out)
   arr1 = [None, {"c":3}, None, None]
   arr2 = [{}, {"d": 4}, {}]
+  mrg.both_show(arr1, arr2)
   mrg.items_merge(arr1, arr2)
   print(arr1)
   arr1 = ["", "Yes"]
   arr2 = ["No", ""]
+  mrg.both_show(arr1, arr2)
   mrg.items_merge(arr1, arr2)
   print(arr1)
+
 def test_tmplgen():
   # Base items
   items = tmplgen.load_json_or_yaml("tdata/car.model.yaml");
@@ -115,6 +120,7 @@ def test_tmplgen():
   print(json.dumps(items, indent=2));
   retarr = dputil.tmpl_gen(items, "tdata/car.json.j2", path="/tmp/cars-output/", debug=1)
   return
+
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {

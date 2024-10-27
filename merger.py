@@ -2,21 +2,28 @@
 import sys
 import copy
 
+# Test if both datastructures / collections (or primitives) are of same time (passed as 3rd param)
+# 
 def both_are(i1, i2, t):
   if not isinstance(i1, t): return False
   if not isinstance(i2, t): return False
   return True
 
+# Show self-data and defaults (in that order) for debugging purposes
+def both_show(d1, d2):
+  print("Data-Dest: ", d1)
+  print("Defaults : ", d2)
 def dict_merge_defs(dictn, defs, **kwargs):
   if not isinstance(dictn, dict): return None
   if not isinstance(defs, dict): return None
   defkeys = kwargs.get("defkeys") or defs.keys()
+
   debug = kwargs.get("debug")
-  if debug: print("Keys driving merge (default): "+str(defkeys));
+  if debug: print("- Keys driving merge (default): "+str(defkeys));
   for dk in defkeys:
     if not dk in dictn:
       # Note: value can be any type, must stringify
-      if debug: print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr)
+      if debug: print("- Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr)
       dictn[dk] = defs[dk]
   return dictn
 
@@ -35,7 +42,7 @@ def items_merge(a1, a2):
   size = min(len(a1), len(a2))
   i = 0
   while i < size:
-    print("Got "+str(a1[i]) );
+    print("- MM-Got "+str(a1[i]) );
     if a1[i] == None: a1[i] = copy.deepcopy(a2[i]) # Duplicate/Clone
     elif both_are(a1[i], a2[i], dict):
       dict_merge_defs(a1[i], a2[i])
