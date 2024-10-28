@@ -55,7 +55,7 @@ _parser = None
 # Load YAML or JSON "model".
 # *This* app expects the returned "handle" to be an array / list (of objects)
 def load_json_or_yaml(fn):
-  if not os.path.isfile(fn): raise "File '"+fn+"' does not exist"
+  if not os.path.isfile(fn): raise Exception("File '"+fn+"' does not exist")
   cont = open(fn, "r").read()
   if not cont: raise "No config content gotten from '"+fn+"'"
   cfg = None
@@ -183,6 +183,7 @@ def gensimple(args):
   path = args.get("path") # or ".";
   tmplfn = args.get("tmplfn", "")
   debug  = args.get("debug", "")
+  if debug: print("gensimple args: ", args);
   retarr = dputil.tmpl_gen([it], tmplfn, path=path, debug=debug) # Pass single item in array (!!!)
   return
 
