@@ -71,12 +71,23 @@ def tmpl_load(fn):
   template = jinja2.Template(tstr)
   return template
 
-# Template multiple items and generate output content with individual templates, save each to an individual file.
+def templated(tmpl, para):
+  if re.search(r'\n', tmplfn): tstr = tmpl
+  else: tstr = open(tmpl, "r").read()
+  template = jinja2.Template(tstr)
+  out = template.render(**cs)
+  return out
+
+# Template multiple items and generate output content with individual templates, save each to an individual file(Np,Nt,No).
 # TODO: Separate passes for content generation and saving to files ( tmpl_multi_save(),
-# allow callbak for thi9s latter?)
+# allow callback for this latter?). Params (in array items) used by tmpl_multi_gen():
+# - tfn - template filename
+# - ofn - output filename
+# TODO: Allow tfn in kwargs ?
 def tmpl_multi_gen(arr, **kwargs):
   for cs in arr:
-    tfn = cs["tfn"] # "./tmpl/"+cs["bfn"]+".j2"
+    tfn = cs.get("tfn") # "./tmpl/"+cs["bfn"]+".j2" # or kwargs.get("tfn");
+    if not tfn: print("No template filename (tfn) property in data item !"); continue
     tmpl = tmpl_load(tfn)
     out = tmpl.render(**cs) # Use node itself as params
     outfn = cs["ofn"]
@@ -88,14 +99,17 @@ def tmpl_multi_gen(arr, **kwargs):
     cb = kwargs.get("postcb", "")
     if cb: cb(cs, udata)
   return
-# Generate content with single template for multiple items outputting each to individual file.
+# Generate content with single template for multiple items outputting each to individual file (Np,1T,No).
 # If output file property (ofn) is missing in each item, output all to common stdout.
 # - path - alternative / explicit root
+# - debug - turn on debug messages
 def tmpl_gen(arr, tmplfn, **kwargs):
-  #
+  if not tmplfn: print("No template filename (or template) passed"); return
+  # TODO: Detect if tmplfn is actually a template ("\n" within string OR has '{{')
+  #if re.search(r'\n', tmplfn) or re.search(r'{{', tmplfn): tmplstr = tmplfn ... else: tmplstr = open(tmplfn, "r").read()
   if tmplfn: tmplstr = open(tmplfn, "r").read()
   else: print("No template filename passed"); return
-  if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return
+  if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return # Or conv dict to [it] ?
   #alen = len(sys.argv)
   #if alen > 2: tmplstr = sys.argv[2]; # print("Len is "+str(alen));
   template = jinja2.Template(tmplstr) # Once (for all items) !
@@ -110,8 +124,12 @@ def tmpl_gen(arr, tmplfn, **kwargs):
     out = template.render(**it)
     # TODO: Possibly reject absolute paths. os.path.exists()
     fn = it.get("ofn")
-    if not out: print("Warning: No content created to '"+fn+"'", file=sys.stderr)
+    if not out: print("Warning: No content created to '"+fn+"'", file=sys.stderr) # continue ?
     if fn:
+      # Test if filename (member "ofn") is parametrized by template notation.
+      # Trust blindly that "it" contains parameter(s) that is (are) used within templated/parametrized filename (as this is hard to fully validate)
+      # Must do this detection early, as fn below must be final / real ! (parametization may be in bn part or dn part)
+      if re.search(r'{{', fn): fnt = jinja2.Template(fn); fn = fnt.render(**it) # Use: fn = templated(fn, it)
       bn = os.path.basename(fn)
       dn = os.path.dirname(fn)
       # Override path (current dir / '.')
@@ -123,13 +141,14 @@ def tmpl_gen(arr, tmplfn, **kwargs):
       if not os.path.exists(dn):
         os.mkdir(dn, 0o755)
         if debug: print("Created-path: "+dn, file=sys.stderr)
+      
       # Write output
       #fh = open(fn, "w")
       #fh.write(out);
       #fh.close()
       open(fn, "w").write(out) #; fh.close()
       if debug: print("Wrote to "+fn, file=sys.stderr);
-      it["useofn"] = fn # Final choice
+      it["useofn"] = fn # Final choice of filename (as info to caller)
       #print(out)
     # Default: No "ofn" - print to stdout
     else:

@@ -99,12 +99,12 @@ def test_merge():
   arr1 = [None, {"c":3}, None, None]
   arr2 = [{}, {"d": 4}, {}]
   mrg.both_show(arr1, arr2)
-  mrg.items_merge(arr1, arr2)
+  mrg.arrays_merge(arr1, arr2)
   print(arr1)
   arr1 = ["", "Yes"]
   arr2 = ["No", ""]
   mrg.both_show(arr1, arr2)
-  mrg.items_merge(arr1, arr2)
+  mrg.arrays_merge(arr1, arr2)
   print(arr1)
 
 def test_tmplgen():

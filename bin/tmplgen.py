@@ -67,7 +67,7 @@ def load_json_or_yaml(fn):
   if not cfg: raise "No config data (dict) gotten from config file '"+fn+"'"
   return cfg
 
-# Merge defaults to all objects of items.
+# Merge (one set of - i.e. single dict of) defaults to all objects of items.
 def items_mergedefaults(items, defs):
   defkeys = defs.keys()
   for it in items: mrg.dict_merge_defs(it, defs, defkeys=defkeys) # Merge Single dict-item it
@@ -78,6 +78,7 @@ def items_mergedefaults(items, defs):
     #    # Note: value can be any type, must stringify
     #    print("Adding/merging missing k-v: "+dk+"="+str(defs[dk])+"", file=sys.stderr) # 
     #    it[dk] = defs[dk]
+# Second level ,erge
 def items_mergearrays(items, defs, attr):
   # Check
   if not isinstance(items, list): print("No items in array"); return 1
@@ -119,6 +120,8 @@ def items_join(items, member, jifn): # ji=Join item filename
   elif isinstance(items, dict): # Note: items is actually single dict
       items[member] = copy.deepcopy(ji) # Make private copy !
   return items
+
+# CL Usage
 def usage(msg):
   if msg: print(msg)
   # Subcomm ?
@@ -130,7 +133,7 @@ def usage(msg):
   exit(1);
 
 
-# Generate files by templating
+# Generate files by templating. The main templating "engine" for most subcommands.
 # bin/tmplgen.py
 def gencontent(args):
   # if not args: usage("gencontent: Must have args !")
@@ -149,9 +152,11 @@ def gencontent(args):
     if not os.path.exists(ja[1]): print("File ("+ja[1]+") to join as member "+ja[0]+" does not seem to exist");
     else: items_join(items, ja[0], ja[1]);
   #### Merge Defaults ??? #######
-  if args.get("defaults"):
-     #items_mergedefaults(items, {"address": "8765 Madness street"}); # print(json.dumps(items, indent=2));
-     items_mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
+  if args.get("defaults"): # Already contains data (dicts)
+    #MANY: 
+    # if not instanceof(args.get("defaults"), list): usage("The defaults are not in array/list !");
+    # for deffn in args.get("defaults"):
+    items_mergedefaults(items, args.get("defaults")); # print(json.dumps(items, indent=2));
   #for it in items: ...
   #OLD:tmplstr = open(tmplfn, "r").read() # Revive ?
   # Use dputpy templating. Loop through items, produce
@@ -176,7 +181,7 @@ def gensimple(args):
   ##### OUTPUT ####
   # Pass single item as (wrapped) array, adding property "ofn" to indicate output fn
   ofn = args.get("outfn"); # Inject ofn, relative path
-  if ofn: it["ofn"] = ofn
+  if ofn: it["ofn"] = ofn # Override (forcefully) in model from CLI
   if not it["ofn"]: usage("Simple (single) file generation requires output file (in model file (ofn) OR by CLI --outfn) !!!")
   if re.match(r'^/', it["ofn"]): print("Warning: output fn is set to absolute path (make sure this oddity is what you want)!");
   if debug: print("Complete simple model (w. ofn):\n"+json.dumps(it, indent=2), file=sys.stderr);
@@ -184,7 +189,8 @@ def gensimple(args):
   tmplfn = args.get("tmplfn", "")
   debug  = args.get("debug", "")
   if debug: print("gensimple args: ", args);
-  retarr = dputil.tmpl_gen([it], tmplfn, path=path, debug=debug) # Pass single item in array (!!!)
+  #retarr =
+  dputil.tmpl_gen([it], tmplfn, path=path, debug=debug) # Pass single item in array (!!!)
   return
 
 # Generate diff commands to compare:
@@ -271,6 +277,9 @@ if __name__ == "__main__":
   modfn  = args.get("modelfn", ""); # Model/parameters
   tmplfn = args.get("tmplfn", ""); # Template filename (Jinja 2 - *.j2)
   deffn  = args.get("defaultsfn", ""); # Defaults filename
+  # TODO: Split comma-sep defaultsfn to many (not only if if re.search():)
+  # if not deffn: args["defaultsfn"] = []
+  # else: args["defaultsfn"] = deffn.split(','); # NONEED: args["defaultsfn"] = deffn
   path   = args.get("path", ""); # Alternative / Prefix path to generate content to
   debug  = args.get("debug", ""); # Verbose output
   #joinfn  = args.get("joinfn", ""); # Note: joinfn has member:fn notation
@@ -280,11 +289,15 @@ if __name__ == "__main__":
     if not modfn  or (not os.path.isfile(modfn)): usage("Model filename (by --modfn) must be given and be a valid file!")
     if not tmplfn or (not os.path.isfile(tmplfn)): usage("template filename (by --tmplfn) must be given and be a valid file!")
     #if 
-  if deffn and ( not os.path.isfile(deffn)): usage("Defaults filename (by --defaultsfn) must be a valid file");
   if path and not os.path.exists(path): usage("Optional root-path by --path must be a directory!")
-  #if joinfn and not os.path.exists(joinfn): usage("Optional join filename by --joinfn does not exist!") # NOT a PLAIN FN !
+  #NOT (see note): if joinfn and not os.path.exists(joinfn): usage("Optional join filename by --joinfn does not exist!") # NOT a PLAIN FN !
+  # TODO: Multiple deffn
+  #for deffn in args.get("defaultsfn"):
+  #  if 
+  if deffn and ( not os.path.isfile(deffn)): usage("Defaults filename (by --defaultsfn) must be a valid file");
   # Load defaults if present (here or later)
   if deffn: # defaults fn present - load data here for all subcommands (to use)
+    # TODO: Many in loop: for df in args.get("defaultsfn"):
     args["defaults"] = load_json_or_yaml(deffn)
     if not isinstance(args.get("defaults"), dict): usage("Defaults file must contain dict/object (no other types - such as list - allowed)")
   #if not path: path = os.getcwd()
