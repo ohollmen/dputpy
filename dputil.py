@@ -139,7 +139,9 @@ def tmpl_gen(arr, tmplfn, **kwargs):
         if debug: print("Using path/altroot: "+altroot, file=sys.stderr)
       # Create missing dirs (like mkdir -p)
       if not os.path.exists(dn):
-        os.mkdir(dn, 0o755)
+        # https://stackoverflow.com/questions/6004073/how-can-i-create-directories-recursively
+        #os.mkdir(dn, 0o755) # Note: this will only create single dir step (new has parents=True, exist_ok=True)
+        os.makedirs(dn, exist_ok=True) # python > 3.2. Use os.walk for chmod ? except OSError as e: ...
         if debug: print("Created-path: "+dn, file=sys.stderr)
       
       # Write output
