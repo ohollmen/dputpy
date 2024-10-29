@@ -11,7 +11,10 @@ import dputpy.filefmttest as ft
 import dputpy.setops as setops
 import dputpy.clapp as clapp
 import dputpy.bin.tmplgen as tmplgen
-
+# Macro testing
+import jinja2
+import yaml
+  
 #print("Welcome to dputpy !");
 import dputpy.merger as mrg
 
@@ -121,6 +124,28 @@ def test_tmplgen():
   retarr = dputil.tmpl_gen(items, "tdata/car.json.j2", path="/tmp/cars-output/", debug=1)
   return
 
+# https://stackoverflow.com/questions/39288706/jinja2-load-template-from-string-typeerror-no-loader-for-this-environment-spec
+def test_macroinc():
+  tmpl = "tdata/maintmpl.j2"
+  para = "tdata/personinfo.yaml"
+  tstr = open(tmpl, "r").read()
+  print(tstr);
+  if not tstr: print("No template loaded"); return
+  #template = jinja2.Template(tstr)
+  #template = jinja2.Environment(loader=jinja2.BaseLoader()).from_string(tstr)
+  # This works by giving hint to J2 about where to load marcos from !
+  # Also: https://jinja.palletsprojects.com/en/stable/api/#jinja2.PackageLoader
+  # FileSystemLoader can also take a list of paths (see above article)
+  template = jinja2.Environment(loader=jinja2.FileSystemLoader("tdata/")).from_string(tstr)
+  if not template: print("No Jinja template instantiated"); return
+  pstr = open(para, "r").read()
+  if not pstr: print("No param data file loaded"); return
+  p = yaml.safe_load(pstr)
+  if not p: print("No params loaded"); return
+  print(p);
+  out = template.render(**p)
+  print(out);
+
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {
@@ -129,6 +154,7 @@ ops = {
   "runparse": test_runparse,
   "merge": test_merge,
   "tmplgen": test_tmplgen,
+  "macroinc": test_macroinc,
 }
 
 
