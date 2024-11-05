@@ -146,6 +146,24 @@ def test_macroinc():
   out = template.render(**p)
   print(out);
 
+def test_tmpl_loader():
+  arr = [{"name": "Johnny", "amount": 30}, {"name": "Buddy", "amount": 400}, {"name": "Rick", "amount": 2000}]
+  cwd = os.getcwd()
+  tpupper = os.path.dirname(cwd)
+  #print("DIR:", cwd);
+  # Test variations in path configuration / template addressing
+  # Set 1 
+  tmplfn = "ptmpl.j2"
+  tmplpath = ["./tdata"]
+  # Set 2 - tmplfn as longer relative name
+  tmplfn = "dputpy/tdata/ptmpl.j2"
+  tmplpath = [tpupper]
+  # jinja2.exceptions.UndefinedError: 'billinfo' is undefined (when not using namespace specifier)
+  dputil.tmpl_gen(arr, tmplfn, tmpl_path=tmplpath)
+  print("Done with templating!");
+  #for dp, dns, fns in os.walk("/tmp/issue"):
+  #  print(dp)
+  #  print("Files: ", fns)
 # grep ^def selftest.py
 # perl -p -e 's/^def\s+(w+)/$1/; print $_
 ops = {
@@ -155,6 +173,7 @@ ops = {
   "merge": test_merge,
   "tmplgen": test_tmplgen,
   "macroinc": test_macroinc,
+  "tmplloader": test_tmpl_loader, 
 }
 
 
