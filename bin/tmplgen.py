@@ -266,6 +266,7 @@ if __name__ == "__main__":
   parser.add_argument('--format',  default="", help='Output format (for subcommand modeldump, use: json or yaml)')
   parser.add_argument('--joinfn',  default="", help='Join a YAML file to model (YAML), with arg: $MEMNAME:$FILENAME')
   parser.add_argument('--outfn',  default="", help='Output file for subcommand gensimple (relative path that appends to path given by --path)')
+  parser.add_argument('--tmplpath',  default="", help='":" - delimited template paths for possible template locations (in format Similar to $PATH, $PYTONPATH)')
   #parser.add_argument('--xx',  default="", help='')
   
   if len(sys.argv) < 2: usage("Subcommand missing - please pass subcommand as first arg (see choices below ...).")
@@ -282,6 +283,9 @@ if __name__ == "__main__":
   # else: args["defaultsfn"] = deffn.split(','); # NONEED: args["defaultsfn"] = deffn
   path   = args.get("path", ""); # Alternative / Prefix path to generate content to
   debug  = args.get("debug", ""); # Verbose output
+  tmplpath = args.get("tmplpath");
+  if tmplpath: args["tmplpath"] = tmplpath.split(":")
+  elif os.environ.get("TMPL_PATH"): args["tmplpath"] = os.environ.get("TMPL_PATH").split(":");
   #joinfn  = args.get("joinfn", ""); # Note: joinfn has member:fn notation
   need_m_t = {"gen": True, "gendiff": True} # Need model and template
   # Validate !!!

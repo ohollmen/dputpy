@@ -107,12 +107,22 @@ def tmpl_gen(arr, tmplfn, **kwargs):
   if not tmplfn: print("No template filename (or template) passed"); return
   # TODO: Detect if tmplfn is actually a template ("\n" within string OR has '{{')
   #if re.search(r'\n', tmplfn) or re.search(r'{{', tmplfn): tmplstr = tmplfn ... else: tmplstr = open(tmplfn, "r").read()
-  if tmplfn: tmplstr = open(tmplfn, "r").read()
-  else: print("No template filename passed"); return
+  if not tmplfn: print("No template filename passed"); return
   if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return # Or conv dict to [it] ?
-  #alen = len(sys.argv)
-  #if alen > 2: tmplstr = sys.argv[2]; # print("Len is "+str(alen));
-  template = jinja2.Template(tmplstr) # Once (for all items) !
+  template = None
+  # Create template by either construction method based on need for (macro) loader (DictLoader,FileSystemLoader,ChoiceLoader)
+  tpath = kwargs.get("tmpl_path")
+  # print("Version with TMPL_PATH");
+  if tpath and not isinstance(tpath, list): print("Warning: passed tmpl_path as non-array!"); # Error ? Convert ? tpath = [tpath]
+  if tpath and isinstance(tpath, list):
+    # Validate tpath as set of dirs (for now at caller) ?
+    print("Instantiate special template loader with paths: ", tpath);
+    loader = jinja2.FileSystemLoader(tpath)
+    env = jinja2.Environment(loader=loader)
+    template = env.get_template(tmplfn)
+  else:
+    tmplstr = open(tmplfn, "r").read()
+    template = jinja2.Template(tmplstr) # Once (for all items) !
   altroot = kwargs.get("path")
   debug   = kwargs.get("debug")
   # Allow ctx-object to wrap the array (change checks / expectations above), possibly trigger on isinstance(arr, dict)
