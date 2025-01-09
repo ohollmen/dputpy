@@ -6,6 +6,31 @@ modern devops automation involving
 - Reading, Writing, Transforming Files (e.g. JSON, YAML, INI, CSV, ...)
 - Setting up and validating and testing arbitrary host environments (On-Prem, Cloud, Baremetal, VM, mixture of previous).
 
+# Installing dputpy
+
+dputpy as a module/package is in "standard" Python pakage format, but
+is not (yet?) available in PyPI (Python Package Index). As such it is
+handiest installed (directly from GitHub) by:
+```
+# Simple installation scenario
+pip3 install https://github.com/ohollmen/dputpy/archive/master.zip
+# If python complains about not installing in pyenv based environment:
+pip3 install --break-system-packages https://github.com/ohollmen/dputpy/archive/master.zip
+```
+This ZIP package based installation makes PIPm download the GitHub repo (in
+standard Python package format) as ZIP file (a feature supported by
+GitHub) and install it from that Zipped Python package file.
+The location of installation may vary by OS (Linux, MacOS, Windows).
+
+With good luck the PYTHONPATH environment variable or runtime sys.path
+(both reflecting Python library path) will point to path locations
+where dputpy was installed. If you need one of the executables in
+dputpy `bin` directory, make sure to have that in OS environment
+`$PATH` variable (Note: to adjust PYTHONPATH or PATH for dputpy you
+first have to know where pip installed it, skim the output of `pip3
+install ...` for clues on that).
+
+
 # Using dputpy in a Python Project
 
 Example of using various dputpy modules in your project
