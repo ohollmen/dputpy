@@ -101,7 +101,7 @@ def tmpl_multi_gen(arr, **kwargs):
   return
 # Generate content with single template for multiple items outputting each to individual file (Np,1T,No).
 # If output file property (ofn) is missing in each item, output all to common stdout.
-# - path - alternative / explicit root
+# - path - alternative / explicit output root path
 # - debug - turn on debug messages
 def tmpl_gen(arr, tmplfn, **kwargs):
   if not tmplfn: print("No template filename (or template) passed"); return
@@ -109,6 +109,7 @@ def tmpl_gen(arr, tmplfn, **kwargs):
   #if re.search(r'\n', tmplfn) or re.search(r'{{', tmplfn): tmplstr = tmplfn ... else: tmplstr = open(tmplfn, "r").read()
   if not tmplfn: print("No template filename passed"); return
   if not isinstance(arr, list): print("data for multi-item templating is not a list/array !"); return # Or conv dict to [it] ?
+  # New tmpl_path support
   template = None
   # Create template by either construction method based on need for (macro) loader (DictLoader,FileSystemLoader,ChoiceLoader)
   tpath = kwargs.get("tmpl_path")
@@ -123,7 +124,7 @@ def tmpl_gen(arr, tmplfn, **kwargs):
   else:
     tmplstr = open(tmplfn, "r").read()
     template = jinja2.Template(tmplstr) # Once (for all items) !
-  altroot = kwargs.get("path")
+  altroot = kwargs.get("path") # Output path
   debug   = kwargs.get("debug")
   # Allow ctx-object to wrap the array (change checks / expectations above), possibly trigger on isinstance(arr, dict)
   # TODO: Define possible merging from ctx ? In case of ctx, there are multiple scenarios
