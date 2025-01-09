@@ -232,7 +232,10 @@ def modeldump(args):
   elif fmt == "yaml": print( yaml.dump(items, Dumper=yaml.Dumper))
   else: print("Format (yaml or json) not passed or format not supported: '"+fmt+"'");
   return 0
-
+def rtenv(args):
+  print("sys.path"+json.dumps(sys.path));
+  print("Env: PYTHONPATH: "+os.environ["PYTHONPATH"]);
+  print("Env: PATH: "+os.environ["PATH"]);
 # Subcommands
 ops = {
   "gen":       {"title": "Generate Content by model using templating", "cb": gencontent},
@@ -242,12 +245,15 @@ ops = {
   #"": {},
   # Simple 1:1:1 templating
   "gensimple": {"title": "Generate Content by single dict/object, single template (single output, use --outfn to indicate output file)", "cb": gensimple},
+  #"rtenv": {"title": "Python Runtime environment info (module paths, env settings, python interpreter and version etc.)"}
 }
 # Example of running
 # ```
 # # You *may* have to set PYTHONPATH (Python library path)
 # export PYTHONPATH=.
-# dputpy/bin/tmplgen.py --modelfn items.yaml --tmplfn linvm.txt.j2 --path /tmp --debug
+# dputpy/bin/tmplgen.py gen --modelfn items.yaml --tmplfn linvm.txt.j2 --path /tmp --debug
+# # Output file (by --outfn will be under path given by --path)
+# dputpy/bin/tmplgen.py gen --modelfn mymodel.yaml --tmplfn mytmpl.c.j2 --path /tmp/project1 --outfn src/mycode.c
 # ```
 if __name__ == "__main__":
   parser = argparse.ArgumentParser(description='Template Expander / Content Generator')
@@ -258,7 +264,7 @@ if __name__ == "__main__":
   parser.add_argument('--defaultsfn',  default="", help='Filename for default values to merge onto objects of model.')
   
   # Note: Must be on area where user has dir/file write accress
-  parser.add_argument('--path',  default="", help='Alternative top-directory (prefix) path to add relative output-filename (ofn) paths to.')
+  parser.add_argument('--path',  default="", help='Alternative top-directory (prefix) output path to add relative output-filename (YAML: ofn / CLI: --outfn) paths to.')
   # https://stackoverflow.com/questions/15008758/parsing-boolean-values-with-argparse
   #   not avail in Python 3.6.9 (Ubuntu)
   parser.add_argument('--debug', default=False, action=argparse.BooleanOptionalAction, help='Trigger verbose output for the templating process')
