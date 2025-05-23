@@ -201,6 +201,8 @@ def run_parsecont(ret, kwa):
   # Check format "fmt" parameter to see the need for parsing
   fmts = {"json": 1, "yaml": 1}
   fmt = kwa.get("fmt", "")
+  if ret["out"] == None: print("Warning: Can't parse None"); ret["out"] = None; return
+  # 
   if   fmt == 'json': ret["data"] = json.loads(ret["out"]) # fmts.get(fmt):
   elif fmt == 'yaml':
     ret["data"] = yamlload(ret["out"]) # Rely on \n, ---. Pass kwa ?
@@ -219,23 +221,30 @@ def run(cmd, **kwargs):
   ret = {"rc": -10000, "out": None, "err": None}
   if isinstance(cmd, list): cmdarr = cmd
   else: cmdarr = cmd_arr(cmd)
-  if kwargs.get("debug"): print("run-args: "+json.dumps(cmdarr));
+  debug = kwargs.get("debug")
+  if debug: print("run-args: "+json.dumps(cmdarr));
   # Be slightly wasteful and store BOTH stdout and stderr for later
   # inspection (by caller). Seems text=... param is not supported by older
   # python / module (e.g. Ubu18 built-in) version.
+
   call = subprocess.run(cmdarr,
-    stdout=subprocess.PIPE, stderr=subprocess.PIPE,  ) # text=True,
+    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True ) # text=True,
   ret["rc"]  = call.returncode
-  if ret["rc"]: print(f"Warning: run() may have failed with rc={ret['rc']}");
+  if ret["rc"]: print(f"Warning: run() may have failed with rc={ret['rc']}, {call.stderr}");
   # Note: Newer Python could just use text=True above
-  ret["out"] = str(call.stdout.decode('utf-8')) # 'ascii'
-  ret["err"] = str(call.stderr.decode('utf-8'))
+  if kwargs.get("legacy"): # For old-python compat
+    ret["out"] = str(call.stdout.decode('utf-8')) # 'ascii'
+    ret["err"] = str(call.stderr.decode('utf-8'))
+  else: # Newer python, use call attrs directly (w/o conversions)
+    ret["out"] = call.stdout
+    ret["err"] = call.stderr
   if ret["rc"] and kwargs.get("onerror"):
     # Check 
     kwargs.get("onerror")("run: Error From command: "+cmd)
   # TODO: catch ... ? (for parser errors)
+  if debug: print("Got cont: "+ret["out"]);
   if not ret["rc"] and kwargs.get("fmt"):
-    if kwargs.get("debug"): print("Requested parsing as "+kwargs.get("fmt"))
+    if debug: print("Requested parsing as "+kwargs.get("fmt"))
     run_parsecont(ret, kwargs)
   return ret
 
