@@ -10,7 +10,7 @@ modern devops automation involving
 
 dputpy as a module/package is in "standard" Python pakage format, but
 is not (yet?) available in PyPI (Python Package Index). As such it is
-handiest installed (directly from GitHub) by:
+handiest installed (directly from GitHub) by a pip3 supported GitHub install-method:
 ```
 # Simple installation scenario
 pip3 install https://github.com/ohollmen/dputpy/archive/master.zip
@@ -30,6 +30,16 @@ dputpy `bin` directory, make sure to have that in OS environment
 first have to know where pip installed it, skim the output of `pip3
 install ...` for clues on that).
 
+## Re-Installing dputpy (forcefully)
+
+If you need to update dputpy (e.g. in case where calling code is using new features, internal behavior or interfaces in dputpy) in your system,
+ypu can force it to happen by:
+```
+# Leave out --break-system-packages depending on the way you install 
+pip3 install --break-system-packages --force-reinstall https://github.com/ohollmen/dputpy/archive/master.zip
+```
+
+Complete list of `pip3 install ...` options: [pip3 install manual pages](https://pip.pypa.io/en/stable/cli/pip_install/)
 
 # Using dputpy in a Python Project
 
