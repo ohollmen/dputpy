@@ -32,12 +32,16 @@ def new(_ops, **kwargs):
   #print(ops)
   return clapp
 
-def clparse(ca):
+def clparse(ca, **kwargs):
   #global ops
   ops = ca["ops"]
-  sys.argv = sys.argv[1:]
-  if not len(sys.argv): usage(ca, "No subcommand/op given")
-  op = sys.argv.pop(0); # x = x[1:]
+  # Note the original "strip script name and subcommand" triggered arg parsing problem (error: unrecognized arguments: ...).
+  # Must retain python script name in sys.argv as argparse
+  # starts parsing sys.argv[1:] (wants to strip script name itself). Alt: add dummy script name back e.g. 
+  #sys.argv = sys.argv[1:]
+  if len(sys.argv) < 2: usage(ca, "No subcommand/op given")
+  op = sys.argv.pop(1); # x = x[1:]. NEW 0 => 1
+  #sys.argv.insert(0, "dummy") # putting dummy script name back as sys.arg[0] works as well
   if not op: usage(ca, "No subcommand/op given"); 
   cmdok = False
   if isinstance(ops, dict) and ops.get(op): cmdok = True
@@ -50,6 +54,7 @@ def clparse(ca):
   ap = ca.get("clopts") # argparse instance
   if ap:
     # Note also: pargs, rawargs = parser.parse_known_args() # https://stackoverflow.com/questions/17118999/python-argparse-unrecognized-arguments
+    if kwargs.get("debug"): print(f"CL/Args (sys.argv) before parsing: ", sys.argv)
     args = ap.parse_args() # parser.parse_args()
     opts = vars(args)
     #ALSO: ca["opts"] = opts # ???
@@ -67,7 +72,7 @@ def usage(ca, msg, **kwargs):
   elif isinstance(ops, list): oplist = map(lambda x: x.get("id"), ops);
   print("Try one of the subcommands: "+", ".join(oplist))
   exit(0)
-  return
+  #return
 
 # Pass None (in app  __main__) to trigger parameterless call.
 # One app can only have one form of call for all handlers
@@ -124,6 +129,7 @@ def gen_subcomm(opts):
     print(f"  {json.dumps(e)},")
     #scarr.append(e)
   print("]");
+  gen_ap(opts);
   #print(f"ops = {json.dumps(scarr, indent=2)}")
 ops = [
   {"id": "argparse_opts", "label": "Generate argparse instantiation and argument registration calls (Pass --argnames ans optionally --appname)", "cb": gen_ap},
@@ -142,10 +148,10 @@ if __name__ == "__main__":
   #print(f"Module reports: {this_module2}");
   parser = argparse.ArgumentParser()
   # Can use "--" prefix on argname to denote optional. Seems "--" prefix and default="..." are mutually exclusive
-  parser.add_argument("--argnames", type=str, default="opt1,opt2,opt3", help="Argument names to generate argparse instantiation from")
-  parser.add_argument("--appname", type=str, default="My App", help="Application (descriptive) name")
-  parser.add_argument("--scnames", type=str, default="sub1,sub2,sub3", help="Subcommand names as used on the CLI")
+  parser.add_argument("--argnames", type=str, default="opt1,opt2,opt3", help="Argument names to generate argparse instantiation from", required=False,)
+  parser.add_argument("--appname", type=str, default="My App", help="Application (descriptive) name", required=False, )
+  parser.add_argument("--scnames", type=str, default="sub1,sub2,sub3", help="Subcommand names as used on the CLI", required=False, )
   cla = new(ops, clopts=parser)
-  opts = clparse(cla)
+  opts = clparse(cla, debug=1)
   print("Opts gotten: ", opts);
   run(cla, opts)
