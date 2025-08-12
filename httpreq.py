@@ -94,7 +94,7 @@ def curlify(meth, url, **kwargs):
   hdrs = kwargs.get("headers")
   bmeth = meth.lower() in bodymeth # bodymeth.contains(meth)
   for hk in ["Accept","Content-Type","Authorization"]:
-    if hdrs.get(hk): cmd += f"-H '{hk}: {hdrs[hk]}' "
+    if hdrs and hdrs.get(hk): cmd += f"-H '{hk}: {hdrs[hk]}' "
   if bmeth:
     body = kwargs.get("data")
     if (isinstance(body, dict)) or (isinstance(body, list)): body = json.dumps(body)
