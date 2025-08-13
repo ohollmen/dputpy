@@ -2,6 +2,7 @@
 import requests
 import sys # sys.stderr
 import json
+import base64
 
 bodymeth = ["post","put","patch"]
 std_hdrs = {"Content-Type": "application/json",  "Accept": "application/json"} # "Authorization": "Bearer ",
@@ -29,13 +30,20 @@ def url_templated(purl, p, **kwargs):
 # Credentials are always set into Autorization header. If AUthorization header was set before it will be overwritten.
 def creds_set(hdrs, atype, aval):
   if not isinstance(hdrs, dict): raise Exception('Local: No HTTP Headers passed for creds addition.');
-  if atype.lower() == 'basic': hdrs["Authorization"] = "Basic "+str(base64.b64encode( aval ))
+  # Basic - b64 encode
+  if atype.lower() == 'basic':
+    bc_b = base64.b64encode( aval.encode("utf-8") ).decode("utf-8")
+    #bc_s = base64.b64encode(bc_b).decode("utf-8") # str() conversion leaves "b'...'" into string
+    #hdrs["Authorization"] = "Basic "+str(base64.b64encode( aval.encode("utf-8") ).decode("utf-8")  )
+    hdrs["Authorization"] = f"Basic {bc_b}"
+  # Bearer - keep as-is
   elif atype.lower() == 'bearer': hdrs["Authorization"] = f"Bearer {aval}"
+  # Any Other (e.g. x-api-key), keep header key and auth. value as-is
   elif atype: hdrs[atype] = aval # Allow type to be arbitrary key (e.g. "x-apikey") and use as 
   return hdrs
 
 def file_to_b64(fname):
-  import base64
+  #import base64
   import os
   if not fname: return None
   if not os.path.exists(fname): return None
@@ -58,29 +66,42 @@ def request(meth, url, **kwargs):
   # Note: Must del to not cause TypeError: Session.request() got an unexpected keyword argument 'debug'
   debug = kwargs.get("debug")
   if debug: del kwargs['debug']
+  rresp = 0
+  if kwargs.get("rresp"): rresp = 1; del kwargs["rresp"]
   if not isinstance(kwargs, dict): raise Exception('Local: No HTTP request related params');
   kwargs["url"] = url
-  # Is one of the HTTP Methods requiring Body (POST,PUT,PATCH)
-  bmeth = meth.lower() in bodymeth # bodymeth.contains(meth)
-  if bmeth and not kwargs.get("data"): raise ValueError(f"Local: No body data for body-based method '{meth}'")
-  # Also: httphdlr = getattr(requests, meth, None); if not httphdlr: raise ValueError("No http method handler found")
   #hdrs = copy.deepcopy(std_hdrs)
   #### if not kwargs.get("headers")
   hdrs = kwargs.get("headers")
   if not hdrs: hdrs = kwargs["headers"] = {}
+  else: hdrs = kwargs["headers"]
+  print("Initial headers: ", hdrs);
+  # Is one of the HTTP Methods requiring Body (POST,PUT,PATCH)
+  bmeth = meth.lower() in bodymeth # bodymeth.contains(meth)
+  # Per C.G. requests should handle setting content-length internally.
+  if   bmeth and isinstance(kwargs.get("data"), str): pass # hdrs['Content-Length'] = str( len( kwargs.get('data') ) )
+  elif bmeth and not kwargs.get("data"): raise ValueError(f"Local: No body kw 'data' for body-based method '{meth}'")
+  # Also: httphdlr = getattr(requests, meth, None); if not httphdlr: raise ValueError("No http method handler found")
   # Overlay STD
   if not hdrs.get("Accept"): hdrs["Accept"] = "application/json"
-  if bmeth: hdrs["Content-Type"] = "application/json"
+  # Allow existing/explicit Content-Type to prevail (take over)
+  if bmeth and not hdrs.get("Content-Type"): hdrs["Content-Type"] = "application/json"
   #print("Call ("+meth+") " + url)
   if bmeth and debug:
     print(f"BODYMETH({meth}) HEADERS:", kwargs.get("headers"), file=sys.stderr);
-    print("BODY: ", kwargs.get("data"), file=sys.stderr)
+    print(f"BODY: '{kwargs.get('data')}'", file=sys.stderr)
   try:
     # Need to copy ONLY ["url","hdrs","data"] to new kwargs ?
     resp = requests.request(meth, **kwargs)
     if debug or (resp.status_code != 200): print("Received status: "+str(resp.status_code));
     resp.raise_for_status()
-    jdata = resp.json()
+    # Client may want to inspect / access the whole response
+    if rresp: return resp
+    # ... but for most use-cases the convenience of getting only data is enough ....
+    # Test if content-type json is promised, parse it
+    if '/json' in resp.headers.get("Content-Type", ""): # OLD: == 'application/json':
+      jdata = resp.json()
+    else: jdata = resp.text
     return jdata # Complete JSON response data !
   except requests.exceptions.RequestException as e:
     # logger.error
@@ -95,9 +116,11 @@ def curlify(meth, url, **kwargs):
   bmeth = meth.lower() in bodymeth # bodymeth.contains(meth)
   for hk in ["Accept","Content-Type","Authorization"]:
     if hdrs and hdrs.get(hk): cmd += f"-H '{hk}: {hdrs[hk]}' "
-  if bmeth:
+  if bmeth and kwargs.get("data"):
     body = kwargs.get("data")
     if (isinstance(body, dict)) or (isinstance(body, list)): body = json.dumps(body)
+    # isinstance(body, str) and
+    elif  not body: body = ''
     cmd += f"-d '{body}' "
   cmd += f"'{url}'"
   return cmd
