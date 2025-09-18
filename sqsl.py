@@ -9,20 +9,33 @@ import re
 
 # AWS Documented URLs to call from a running container to retrieve an SQS Message.
 # https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html
-# AWS Port for next / response calls are 9001 (as seen below)
-url_sqs_next = "http://127.0.0.1:9001/2018-06-01/runtime/invocation/next" # GET
+# AWS Port for next / response / response calls is 9001
+url_sqs_next = "http://127.0.0.1:{port}/2018-06-01/runtime/invocation/next" # GET
 # Use value from 'next' call response http headers 'Lambda-Runtime-Aws-Request-Id' (In AWS docs URL: /AwsRequestId/ or /$REQUEST_ID/ )
-url_sqs_resp = "http://127.0.0.1:9001/2018-06-01/runtime/invocation/{request_id}/response" # POST: Note: reqires .format()
+url_sqs_resp = "http://127.0.0.1:{port}/2018-06-01/runtime/invocation/{request_id}/response" # POST: Note: reqires .format()
 # Error during processing SQS Message
-url_sqs_err  = "http://127.0.0.1:9001/2018-06-01/runtime/invocation/{request_id}/error" # POST
+url_sqs_err  = "http://127.0.0.1:{port}/2018-06-01/runtime/invocation/{request_id}/error" # POST
+urls = { "next": url_sqs_next, "resp": url_sqs_resp, "err": url_sqs_err }
 # Note: There are a few potential URL:s that may be needed for granular scenarios
 # /runtime/init/error
-# 
+port = 9001 # "Module/Package" level default. Change by sqsl.port Before calling URL generation functions.
 url_self = "http://127.0.0.1:{port}/"
 # echo -n '{"message": "Hello"}' | base64
 cev_b64_str = "eyJtZXNzYWdlIjogIkhlbGxvIn0="
 sqs_ev_mock = {"Records": [{"messageId": "6ccf123", "body": cev_b64_str } ] }
 debug = 0
+
+# Generate URL (and validate parameters to format it fully).
+# Port (default: 9001) can be passed in kwargs but it will fall back to package level "port" var.
+# rep and err call types must have "request_id".
+# Return URL (or raise exceptions for lac
+def sqs_url(bn, **kwargs):
+  p = kwargs.get("port")
+  if not p: p = port
+  if not bn in urls: raise f"URL type (basename) '{bn}' not in allowed URL types"
+  rtypes = ["resp","err"]
+  if (bn in rtypes) and (not "request_id" in kwargs): raise "sqs_url(): No request_id kwarg for response/error call !"
+  return urls[bn].format(port=p, request_id=kwargs.get('request_id', ""))
 
 # Parse Cloud event JSON message embedded (as b64) from an AWS SQS message passed here.
 # Expects AWS SQS message w. Records[0].body containing the b64 
@@ -66,8 +79,11 @@ def sqs_msg_data_json(sqsevent): # SQS Event with std. structure
 # clients should produce messages in that specific format w. JSON vals in utf-8).
 # Return special object with data and meta-info on Even message (todo: itemize) or None on various failures.
 def sqs_next():
-  resp = requests.get(url_sqs_next)
+  url = sqs_url('next') # Use class level port
+  resp = requests.get(url)
+  if not resp: print(f"No response gotten from '{url}'"); return None
   event = resp.json() # AWS SQS Event Message
+  if not event: print("No JSON from SQS next-call (gotten by requests HTTP)."); return None
   ctx_hdrs = resp.headers
   reqid = ctx_hdrs.get('Lambda-Runtime-Aws-Request-Id')
   if not reqid: print("No Lambda request_id in headers."); return None
@@ -86,14 +102,17 @@ def sqs_resp(sqse, **kwargs):
   if not isinstance(sqse, dict): print("No sqse passed as dict for URL formatting ()"); return
   if not sqse.get("request_id"): print("No sqse with member 'request_id' for URL formatting ()"); return
   data = 'SUCCESS'
-  urlfmt = url_sqs_resp
-  err = kwargs.get('error')
+  # urlfmt = url_sqs_resp
+  calltype = 'resp'
+  err = kwargs.get('error') or kwargs.get("err")
   # 'FAILURE' ?
-  if err: data = 'ERROR'; urlfmt = url_sqs_err
+  if err: data = 'ERROR'; calltype = 'err'; # urlfmt = url_sqs_err;
+  url = sqs_url(calltype, **sqse)
+  # Custom (nested) data ?
   rd = sqse.get('respdata')
-  if kwargs.get('respdata'): rd = kwargs.get('respdata')
+  if kwargs.get('respdata'): rd = kwargs.get('respdata') # Alternatively in kwargs (by same key)
   if rd and isinstance(rd, dict): data = json.dumps(rd)
-  url = urlfmt.format(**sqse)
+  # OLD: url = urlfmt.format(**sqse)
   hresp = requests.post(url, data=data) # json=resp) Use 'request_id'
   print(f"Sent message ACK to response (err={err}) url: {url}")
   return hresp
@@ -103,8 +122,12 @@ def sqs_resp(sqse, **kwargs):
 #  return {}
 
 # A convenience method to detect if data passed has mandatory CloudEvent properties in it.
-def is_cloudevent(data):
-  if not data.get("data") or not data.get("atributes"): print("Data missing one of (or both) cloudevent attrs 'data', 'attributes'."); return 0
+def is_cloudevent(elope):
+  msg = elope.get("message")
+  if not msg: raise Exception("Top-level 'message' missing !"); # return 0
+  # Note: Cannot plainly do msg.get("data") for falsy value !!! Loosen up "attributes" too (for empty dict ?)
+  if not "data" in msg: raise Exception("'message' branch missing cloudevent property 'data'."); # return 0
+  if not "attributes" in msg: raise Exception("'message' branch missing cloudevent property ''attributes'."); # return 0
   return 1
 
 # Serve AWS Lambda call (triggered by SQS) to container.
