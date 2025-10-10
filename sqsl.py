@@ -1,4 +1,12 @@
 # for AWS launch mechanisms
+# ## SQS + Lambda (Labda triggered by SQS)
+# - Lambda (Container) must retrieve messages from SQS by URL
+# - Specs for interaction from: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html
+# 
+# ## Lambda triggered from URL
+# - Specs from: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html
+# - JSON Members like (quotes omitted) version: 2.0, rawPath: /, headers: {...}, requestContent: {}
+# - Data of message in .body (string), must parse JSON if 
 import sys
 import requests
 import base64
@@ -48,24 +56,32 @@ def sqs_url(bn, **kwargs):
 # Base64 encoding is decoded and the resulting JSON is parsed and returned (for any potentially useful "other" SQS message data
 # access it at the caller - this methond *only* deals w. Cloud event).
 # Return Cloud event J(JSON) data structure and None on various failures during JSON b64-extraction and parsing.
-def sqs_msg_data_json(sqsevent): # SQS Event with std. structure
-  marr = sqsevent.get("Records")
-  if not marr or not isinstance(marr, list) or len(marr) < 1: print("No message 'Records' (list) !"); return None
-  recs0 = sqsevent.get("Records", [])[0] # [{}]
-  if not recs0: logger.info("No recs0 found"); return None
-  if len(sqsevent.get("Records")) > 1: print("Warming: More than 1 message in request !!!");
-  #cev_b64_str = sqsevent.get("Records", [{}])[0].get("body", "{}")
-  cev_b64_str = recs0.get("body", None)
-  # SQS requires min 1 byte !
-  if not cev_b64_str: print("No b64 enc 'body' found"); return None
-  # validate as SQS message / event
-  mid = recs0.get("messageId")
-  if not mid: print("No 'messageId' found"); return None
+def sqs_msg_data_json(sqsevent): # SQS Event with std. structure   ... , **kwargs
+  cev_b64_str = None # .body of SQS msg or URL call msg
+  # Message patterns of a Lambda URL call
+  if sqsevent.get("version") and sqsevent.get("headers") and sqsevent.get("body"):
+    cev_b64_str = sqsevent.get("body")
+  else:
+    marr = sqsevent.get("Records")
+    if not marr or not isinstance(marr, list) or len(marr) < 1: print("No message 'Records' (list) !"); return None
+    recs0 = sqsevent.get("Records", [])[0] # [{}]
+    if not recs0: logger.info("No recs0 found"); return None
+    if len(sqsevent.get("Records")) > 1: print("Warming: More than 1 message in request !!!");
+    #cev_b64_str = sqsevent.get("Records", [{}])[0].get("body", "{}")
+    # validate as SQS message / event
+    mid = recs0.get("messageId")
+    if not mid: print("No 'messageId' found"); return None
+    cev_b64_str = recs0.get("body", None)
+  ##### .body checks ##################
+  # SQS requires min 1 byte ! Keep same reasonable requirement on POST URL Call.
+  if not cev_b64_str: print("No b64 enc or raw '.body' found"); return None
+  ########## .body Processing ##################
   # NEW: Heuristically accept either raw (escaped within json) json or b64 encoded json in "body".
   j_str = None
+  # For now only JSON object (could add ... or .startswith("[") )
   if cev_b64_str.startswith("{"):# or re.match(r'{\s*"', j_str): # automatically multiline/single string
      j_str = cev_b64_str
-  #else: #
+  # Base64 detected
   elif re.search(r'^[A-Za-z0-9+/=]+$', cev_b64_str):
     b64_bytes = cev_b64_str.encode("utf-8")
     j_str_bytes = base64.b64decode(b64_bytes)
@@ -80,6 +96,8 @@ def sqs_msg_data_json(sqsevent): # SQS Event with std. structure
   #if not cev.get("attributes"): print(f"No member 'attributes' found in CEv (from {j_str})"); return None
   print(f"CEV(msgid:{mid}):", json.dumps(cev, indent=2)) # DEBUG
   return cev
+
+#def url_msg_data_json(msg):
 
 # Request next event from SQS and parse message from it's .Records[0]["body"]
 # The "body" is expected to be JSON content encoded into base64 (to avoid escaping hassle, all SQS
@@ -172,17 +190,19 @@ def serve_aws_lambda(**kwargs):
   #exit(0)
 # OLD:
 # Launch Web application ? Would need to run as subprocess or multiprocessing.
-#app.run() # Need to sleep ?
-# Send exact cloud event
-# TODO: Dont make a http call.
-
+ops = {
+  #"": ""
+}
 if __name__ == '__main__':
   print("Running main ...")
   # TODO: Implement subcommands, extracting message from CLI.
   if len(sys.argv) > 1: op = sys.argv.pop(1)
   print("__main__ not implemented.")
-  # sqs_ev_mock = copy.deepcopy(sqs_ev_mock)
-  # sqs_ev_mock.get("Records")[0]["body"] = sys.argv ....
-  #cev = sqs_msg_data_json(sqs_ev_mock)
+  #if len(sys.argv) > 1: fn = sys.argv.pop(1)
+  #if not fn: print(f"Need test message filename"); exit(1);
+  #cont = open(fn, "r").read()
+  #msg = json.loads(cont)
+  #OLD: sqs_ev_mock = copy.deepcopy(sqs_ev_mock); sqs_ev_mock.get("Records")[0]["body"] = sys.argv ....
+  #cev = sqs_msg_data_json(msg)
   #print("Out from 'body' comes: ", cev);
   exit(0)
