@@ -20,9 +20,15 @@ urls = { "next": url_sqs_next, "resp": url_sqs_resp, "err": url_sqs_err }
 # /runtime/init/error
 port = 9001 # "Module/Package" level default. Change by sqsl.port Before calling URL generation functions.
 url_self = "http://127.0.0.1:{port}/"
+# The module expects the very original (typically JSON) message to be rolled inside SQS message JSON (JSON-inside-JSON) in
+# Records[0].body. This module can handle either properly escaped JSON or base64 encoded JSON (more bulletproof) within .body.
+# Example of encoding chunk of JSON to base64.
+# ```
 # echo -n '{"message": "Hello"}' | base64
-cev_b64_str = "eyJtZXNzYWdlIjogIkhlbGxvIn0="
-sqs_ev_mock = {"Records": [{"messageId": "6ccf123", "body": cev_b64_str } ] }
+# eyJtZXNzYWdlIjogIkhlbGxvIn0=
+# ```
+# "Template" (and example) for simpliest possible SQS message mith members that module cares about.
+sqs_ev_mock = {"Records": [{"messageId": "6ccf123", "body": "" } ] }
 debug = 0
 
 # Generate URL (and validate parameters to format it fully).
@@ -43,7 +49,8 @@ def sqs_url(bn, **kwargs):
 # access it at the caller - this methond *only* deals w. Cloud event).
 # Return Cloud event J(JSON) data structure and None on various failures during JSON b64-extraction and parsing.
 def sqs_msg_data_json(sqsevent): # SQS Event with std. structure
-  #marr = sqsevent.get("Records")
+  marr = sqsevent.get("Records")
+  if not marr or not isinstance(marr, list) or len(marr) < 1: print("No message 'Records' (list) !"); return None
   recs0 = sqsevent.get("Records", [])[0] # [{}]
   if not recs0: logger.info("No recs0 found"); return None
   if len(sqsevent.get("Records")) > 1: print("Warming: More than 1 message in request !!!");
@@ -133,23 +140,22 @@ def is_cloudevent(elope):
 # Serve AWS Lambda call (triggered by SQS) to container.
 # Try to avoid boto3 dependencies as we **can** receive the SQS message plainly via HTTP (requests).
 # Supported kwargs:
+# - debug - Trigger debug output
 # - cb (function) - Callback to process the
+# Examples that run a more persistent container do message processing in a persistent loop (to be ready to
+# receive many messages): while True: ...
 def serve_aws_lambda(**kwargs):
-  #cev = sqs_msg_data_json(sqs_ev_mock)
-  #if not cev: print("Failed to parse SQS message:", sqs_ev_mock)
-  #exit(0)
-  # while True:
-  # Be ready to receive (many) ?
+  sqse = None
   debug = kwargs.get('debug')
-  #try:
-  sqse = sqs_next()
-  if not sqse: print("No message from SQS ('next' - HTTP API)"); return
-  #except Exception as e:
-  #  print(f"SQS Event not properly retrieved from 'next' - web servive"); return
+  try:
+    sqse = sqs_next()
+    if not sqse: print("No message from SQS ('next' - HTTP API)"); return
+  except Exception as e:
+    print(f"SQS Event not properly retrieved from 'next' - web servive"); return
   # Just make a entrypoint that gets passed CEv (obj. w. attrs, data ...)!
   # requests.post(url_self.format({"port": 8081}), json=resp)
   # Process based on sqse (similar to AWS Lambda def )
-  # TODO: validate as func ...
+  # TODO: Call early, even before sqs_next() to not fetch message redundantly.
   cb = kwargs.get('cb')
   if not cb or not callable(cb): print("Callback for processing the SQS message data missing (or not callable type)!"); return
   rv = None
@@ -162,7 +168,7 @@ def serve_aws_lambda(**kwargs):
     #
   # Use rv to repond ?
   #if kwargs.get("userv"): 
-  sqs_resp(sqse, **respkw)
+  hresp = sqs_resp(sqse, **respkw)
   #exit(0)
 # OLD:
 # Launch Web application ? Would need to run as subprocess or multiprocessing.
@@ -172,7 +178,11 @@ def serve_aws_lambda(**kwargs):
 
 if __name__ == '__main__':
   print("Running main ...")
+  # TODO: Implement subcommands, extracting message from CLI.
   if len(sys.argv) > 1: op = sys.argv.pop(1)
-  cev = sqs_msg_data_json(sqs_ev_mock)
-  print("Out from 'body' comes: ", cev);
+  print("__main__ not implemented.")
+  # sqs_ev_mock = copy.deepcopy(sqs_ev_mock)
+  # sqs_ev_mock.get("Records")[0]["body"] = sys.argv ....
+  #cev = sqs_msg_data_json(sqs_ev_mock)
+  #print("Out from 'body' comes: ", cev);
   exit(0)
