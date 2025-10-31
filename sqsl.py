@@ -1,4 +1,11 @@
 # for AWS launch mechanisms
+# Both below mechanisms share the need to pull/retrieve the message (message format varies between the two) from URLs given below.
+# The URL with trailing "/next" is an abstract serice that can return either SQS messages or HTTP POSTs sent to URL.
+# As the message format varies between the two, the messages cannot be processed uniformally. However assuming that member .body
+# (member named the same but in slightly different location) contains the true message (either raw escaped JSON within outer JSON
+# or json encoded in base64 instead of being escaped) the processing below detects the format and returns correct body data all
+# pre-parsed (from JSON to runtime data).
+# 
 # ## SQS + Lambda (Labda triggered by SQS)
 # - Lambda (Container) must retrieve messages from SQS by URL
 # - Specs for interaction from: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html
@@ -6,7 +13,8 @@
 # ## Lambda triggered from URL
 # - Specs from: https://docs.aws.amazon.com/lambda/latest/dg/runtimes-api.html
 # - JSON Members like (quotes omitted) version: 2.0, rawPath: /, headers: {...}, requestContent: {}
-# - Data of message in .body (string), must parse JSON if 
+# - Data of message in .body (string), must parse JSON if
+# - Auth topics: https://docs.aws.amazon.com/lambda/latest/dg/urls-auth.html
 import sys
 import requests
 import base64
@@ -35,8 +43,9 @@ url_self = "http://127.0.0.1:{port}/"
 # echo -n '{"message": "Hello"}' | base64
 # eyJtZXNzYWdlIjogIkhlbGxvIn0=
 # ```
-# "Template" (and example) for simpliest possible SQS message mith members that module cares about.
+# "Template" (and example) for simpliest possible SQS and URL POST message mith members that module cares about.
 sqs_ev_mock = {"Records": [{"messageId": "6ccf123", "body": "" } ] }
+url_msg_mock = {"version": "2.0", "headers": {"content-length": "0"}, "body": ""}
 debug = 0
 
 # Generate URL (and validate parameters to format it fully).
