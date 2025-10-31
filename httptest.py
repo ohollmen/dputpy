@@ -61,10 +61,19 @@ def runtest(app, **kwargs):
     #hreq.creds_set(hdrs, 'basic', self.creds)
     resp = httpreq(u.get("method"), url, headers=hdrs)
     # Analyze against "expect" ("fail" / "pass")
+    # TODO: t_analyze(u, resp): # Write to "result"
     rc = resp.status_code
     #resp.raise_for_status()
-    if is_2XX(rc): print(f"Success {rc}")
-
+    ok = is_2XX(rc)
+    expass = True if u.get("expect") == "pass" else False
+    res = "FAIL"
+    if ok: print(f"Response Code {rc}")
+    if ok and not expass: print("FAIL (expectation: fail)")
+    elif not ok and expass: print("FAIL (expectation: pass)")
+    else: res = "PASS"; print(f"PASS (expectation: {u.get('expect')})")
+    # Write to "result"
+    u["result"] = res
+    
 def is_2XX(rc):
   if rc >= 200 or rc <300: return True
   return False
