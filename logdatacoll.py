@@ -18,8 +18,10 @@ import sys
 # Callback could return whether to stop or not (stop = True).
 def hdl_bool(line, mlist, ctx):
   if len(mlist) > 1: ctx[mlist[1]] = True if mlist[2] == 'True' else False
+  # Secondary match within same line !!
+  # Note: The match (m) composition differs between re.search(restr, mstr) recomp.search(mstr) !!!
   m = re.search(r'\bextra:\s+(\w+)', line)
-  if m and len(m) > 1: ctx["extra"] = m[1]
+  if m and len(m.groups()): ctx["extra"] = m[1]
 def hdl_dotnot(line, mlist, ctx):
   if len(mlist) > 1: ctx["action"] = mlist[1] # jenkins.* (validate actions/methods here ?)
 def hdl_keyval(line, mlist, ctx):
@@ -35,20 +37,16 @@ def hdl_multival(line, mlist, ctx):
 # Note: the order of matcher will (dramatically) affect the ctx output as the
 # first matcher used on line stops further matching. Order your entries smartly / carefully !
 test_matchers = [ # Need case sensitive opt/flag ("opts" ORred) ?
-  {"patt": '(multi\w+):\s+(.+)', "cb": hdl_multival, "term": False},
+  {"patt": r'(multi\w+):\s+(.+)', "cb": hdl_multival, "term": False},
   # For some reason \b translates to \x08
-  {"patt": '(\w+):\s(True|False)', "cb": hdl_bool, "term": False},
-  {"patt": '(\w+\.\w+):\s+(.+)', "cb": hdl_dotnot, "term": False},
+  {"patt": r'(\w+):\s(True|False)', "cb": hdl_bool, "term": False},
+  {"patt": r'(\w+\.\w+):\s+(.+)', "cb": hdl_dotnot, "term": False},
   
-  {"patt": '(\w+):\s+(.+)', "cb": hdl_keyval, "term": False},
+  {"patt": r'(\w+):\s+(.+)', "cb": hdl_keyval, "term": False},
   
 ]
 
-# Perform Log Scan / Data collection
-# Assume all required members to be present in matcher
-# kwargs parameters:
-# - ctx - (pre-filled) context (dict) to collect data to
-def log_scan(matchers, lines, **kwargs):
+def matchers_init(matchers, **kwargs):
   # Init matchers by compiling regexp
   debug = kwargs.get('debug')
   for matcher in matchers:
@@ -56,6 +54,12 @@ def log_scan(matchers, lines, **kwargs):
     if debug: print(f"Compiling '{matcher['patt']}'");
     matcher["re"] = re.compile(matcher["patt"]) # 2nd options, e.g. re.IGNORECASE / re.I
     # Other inits ?
+# Perform Log Scan / Data collection
+# Assume all required members to be present in matcher
+# kwargs parameters:
+# - ctx - (pre-filled) context (dict) to collect data to
+def log_scan(matchers, lines, **kwargs):
+  matchers_init(matchers, **kwargs)
   actctx = {} if (not kwargs.get("ctx")) else kwargs.get("ctx")
   if debug: print("Initial ctx: ", actctx);
   i = 0
@@ -85,7 +89,7 @@ def log_scan(matchers, lines, **kwargs):
 if __name__ == "__main__":
   import json
   fn =  sys.argv[1] if len(sys.argv) > 1 else "tdata/linelog.txt" # ""
-  debug = 2
+  debug = 0
   print(f"main: Work on file: {fn}")
   
   lines = open(fn, "r").read().split("\n")
