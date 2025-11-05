@@ -1,0 +1,11 @@
+key1: val1
+single_token
+key2: val2  extra_k: extra_v
+literal_key: a value
+key3: True
+key4: False
+dot.notation: anything here
+multival: John
+multival: Paul
+multival: George
+multival: Ringo
