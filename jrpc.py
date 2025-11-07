@@ -19,7 +19,7 @@ def api_add(rpcmethod, handler, **kwargs):
   apis[rpcmethod] = handler
   # ricb signature: ()
   ricb = kwargs.get("reqinit")
-  if ricb and callable(ricb): reqinit[m] = ricb # Must be callable()
+  if ricb and callable(ricb): reqinit[rpcmethod] = ricb # Must be callable()
   return
 
 # Detect/classify request as JSON-RPC request (slimmed down or full)
@@ -53,12 +53,12 @@ def dispatch(datajson):
   # Lookup method
   cb = apis[m]
   if not cb: return rpc_error(f"Error in RPC dispatchg: Unknown method '{m}'")
-  if not callable(cb): return   rpc_error(f"Error registered  method '{m}' is not callable")
+  if not callable(cb): return rpc_error(f"Error registered  method '{m}' is not callable")
   # Have a module defined cb for figuring out kwargs ? Always pass rpc as a helper 
   # cbkwa = {"rpc": 1} # Add module desired args to this.
   ricb = reqinit.get(m)
   if ricb: ricb(p)
-  retval = cb(datajson.get("params"), debug=True,rpc=True)
+  retval = cb(p, debug=True,rpc=True,method=m)
   if not retval: return rpc.rpc_error("RPC Dispatching produced None internally !")
   if not isinstance(retval, dict):  return rpc.rpc_error("RPC Dispatching produced non-object (non-dict) !")
   # logging.debug(f"Survived Result type-checks (Is {type(retval)}) !")
