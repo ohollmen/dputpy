@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-# # Log data collector for line based logs.
-# Collects data from log into single dictionary (which can be
-# hierarchical if callbacks so desire and start forming a hierarchy to it).
-# Works on "matchers" that are combo of:
-# - RE Pattern (to match the line with)
-# - Callback to populate match toto
+# # Log data collector for line based logs
+# 
+# Collects data from line-oriented log into single dictionary
+# 
+# - The collected data dictionary can be
+#   hierarchical if callbacks so desire and start forming a hierarchy to it).
+# - Works on "matchers" that are combo of:
+#   - "patt" - RE Pattern to match the log line with (if matched, it gets processed with callback below)
+#   - "cb" - Callback (w. 4 params) to populate match to the dictionary.
+# 
 # ## Notes
-# - It is recommended that "patt" RE is stored in single quotes
-#   for minimum escaping (withing python code, if matchers are stored in
-#   )
+# 
+# - It is recommended that "patt" RE is stored in as "r" prefixed raw string, single quotes
+#   for minimum escaping (withing python code, if matchers are stored in e.g. external JSON
+#   the escaping rules are subject to JSON ser/deser rules).
+# - Some of the example matcher callbacks here may be usable in your log-parsing application, use them
+#   with a notation (e.g.) ... "cb": logdatacoll.hdl_dotnot
 import re
 import sys
 
@@ -90,7 +97,7 @@ if __name__ == "__main__":
   import json
   fn =  sys.argv[1] if len(sys.argv) > 1 else "tdata/linelog.txt" # ""
   debug = 0
-  print(f"main: Work on file: {fn}")
+  print(f"main: Extract data from log file: '{fn}'")
   
   lines = open(fn, "r").read().split("\n")
   if debug > 3: print("LINES:", lines)
