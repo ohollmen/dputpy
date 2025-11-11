@@ -21,6 +21,7 @@ import os
 import time
 import dputpy.httpreq as hreq
 import requests
+import sys # sys.argv for CLI
 
 okmeth = {"get": True, "post": True, "patch": True, }
 appmock = {"name": "MyApp", "servurl": "https://myserv:1000", "headers": {"":""},
@@ -132,3 +133,46 @@ def docs(app):
     print("## {name} ({method_u} \"{url}\")\n".format(**u))
     print("\n{description}\n\nRequest Example:".format(**u))
     print(f"```\n{json.dumps(u.get('params'), indent=2)}\n```\nResponse Example:\n```\n{json.dumps(u.get('respjson'), indent=2) if u.get('respjson') else u.get('resptext')}\n```\n")
+
+#### CLI ####
+htest = sys.modules[__name__]
+# htest = importlib.import_module(__name__) # Must import importlib
+# htest = types.ModuleType(__name__); Must import types and for name, obj in globals().items(): setattr(htest, name, obj)
+def run(opts):
+  htest.runtests(app)
+  htest.summary(app)
+  return
+
+def docs():
+  app = opts.get("app")
+  htest.runtests(app)
+  htest.docs(app) # Must run first !!!
+  return
+ops = [
+  {"id": "runall", "label": "Run *all* tests.", "cb": run},
+  #{"id": "run", "label": "Run tests.", "cb": None},
+  {"id": "docs", "label": "", "cb": docs}
+]
+def usage(msg):
+  print(msg)
+  #
+  exit(1)
+if __name__ == '__main__':
+  # TODO: options
+  #print(sys.path)
+  #print(json.dumps(htest.appmock, indent=2))
+  #op = sys.argv[1]
+  
+  if len(sys.argv) > 1: op = sys.argv.pop(1)
+  else: print("Pass subcommand as first arg!"); exit(1)
+  opn = list(filter(lambda opn: opn.get("id") == op, ops))
+  if not opn: print(f"{op} - No such operation !"); exit(1)
+  opts = {}
+  cfn = "./urltest.conf.json"
+  if len(sys.argv) > 2: cfn = aya.argv[1]
+  # if not exists/isfile(cfn)
+  app = htest.load(cfn)
+  htest.urls_init(app)
+  opts["app"] = app
+  # print(json.dumps(app, indent=2))
+  
