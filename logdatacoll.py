@@ -84,7 +84,7 @@ def log_scan(matchers, lines, **kwargs):
       if m and debug: print(f"- MATCH({j}): {m.groups()}");
       if m: # The m is of type re.Match
         if debug: print(f"- Matched line({i}) '{line}' (by '{matcher['patt']}') - Call cb ({type(matcher['cb'])})")
-        mgs = list(m.groups()); mgs.insert(0, "")
+        mgs = list(m.groups()); mgs.insert(0, "") # mgs = Match groups
         rc = matcher["cb"](line, mgs, actctx) # Match took place, call "cb", Note: rc still unused
         if matcher.get("term"): term = 1 # Stop/Terminate whole file parsing at this match
         break # Do not try any other matchers
@@ -101,6 +101,7 @@ if __name__ == "__main__":
   
   lines = open(fn, "r").read().split("\n")
   if debug > 3: print("LINES:", lines)
+  # Key_value context passed as pre-initialed context. Note multivalue 
   results = {"just_a_key": "just_a_val", "multival": True}
   print("START: ", json.dumps(results, indent=2))
   log_scan(test_matchers, lines, ctx=results, debug=debug);
