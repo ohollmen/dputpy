@@ -56,37 +56,48 @@ test_matchers = [ # Need case sensitive opt/flag ("opts" ORred) ?
 def matchers_init(matchers, **kwargs):
   # Init matchers by compiling regexp
   debug = kwargs.get('debug')
+  i = 0
   for matcher in matchers:
+    i += 1
     # Compile Regexp
     if debug: print(f"Compiling '{matcher['patt']}'");
     matcher["re"] = re.compile(matcher["patt"]) # 2nd options, e.g. re.IGNORECASE / re.I
+    matcher["num"] = i
     # Other inits ?
 # Perform Log Scan / Data collection
 # Assume all required members to be present in matcher
 # kwargs parameters:
 # - ctx - (pre-filled) context (dict) to collect data to
+# - debug - Debug level for diagnosing the matching process
+# - mwam - Match with all matchers (will impose slight perf penalty as we do not give up after first match)
 def log_scan(matchers, lines, **kwargs):
   matchers_init(matchers, **kwargs)
   actctx = {} if (not kwargs.get("ctx")) else kwargs.get("ctx")
-  if debug: print("Initial ctx: ", actctx);
+  debug = kwargs.get('debug')
+  mwam = kwargs.get('mwam')
+  if debug:
+    print("Initial ctx: ", actctx)
+    print(f"Lines to match/search: {len(lines)}, m.w.a.m={mwam}")
   i = 0
   for line in lines:
     i += 1
-    if not line: continue
-    if debug > 1: print(f"Line: '{line}'. Try {len(matchers)} matchers.");
+    if not line: continue # Empty
+    if debug > 2: print(f"Line: '{line}'. Try {len(matchers)} matchers.");
     # Try every matcher
-    j = 1
+    j = 0 # 1 => 0 ?
     term = 0
     for matcher in matchers:
       j += 1
-      if debug: print(f"- Run RE{j}: {matcher['patt']}");
+      if debug > 2: print(f"- Run RE{j}: {matcher['patt']}");
       m = matcher["re"].search(line)
-      if m and debug: print(f"- MATCH({j}): {m.groups()}");
+      if m and debug > 2: print(f"- MATCH({j}): {m.groups()}");
       if m: # The m is of type re.Match
-        if debug: print(f"- Matched line({i}) '{line}' (by '{matcher['patt']}') - Call cb ({type(matcher['cb'])})")
-        mgs = list(m.groups()); mgs.insert(0, "") # mgs = Match groups
+        if debug > 1: print(f"- Matched line({i}) '{line}' (by matcher {matcher['num']}: '{matcher['patt']}') )") # - Call cb ({type(matcher['cb'])}
+        mgs = list(m.groups()); mgs.insert(0, "") # mgs = Match groups. Mimick re.search(patt, sstr) with pre-compiled RE (re.compile(patt)/ compre.search())
         rc = matcher["cb"](line, mgs, actctx) # Match took place, call "cb", Note: rc still unused
         if matcher.get("term"): term = 1 # Stop/Terminate whole file parsing at this match
+        # New/Configurable
+        if mwam: continue # ... till all matchers are tried (on the same single line)
         break # Do not try any other matchers
     if term: break
   return actctx # All info acqired from logs (in dict) !
