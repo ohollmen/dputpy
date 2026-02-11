@@ -42,7 +42,7 @@ def load(fn, **kwargs):
 
 def urls_init(app):
   urls = app.get("urls")
-  print(f"Initing app {app.get('name')} URL:s")
+  print(f"INIT: Initing app {app.get('name')} URL:s")
   if not isinstance(urls, list): raise ValueError("URL:s not in array")
   urls = app["urls"] = list(filter(lambda u: not u.get('disa'), urls))
   for u in urls:
@@ -61,6 +61,11 @@ def urls_init(app):
     if not "headers" in u or not isinstance(u.get("headers"), dict): u["headers"] = {}
 def body_prep():
   return
+
+# Run single test
+def runtest(u, **kwargs):
+  #app = kwargs.get("app")
+  return
 # TODO: Allow various filtering options in **kwargs
 # runall() ?
 def runtests(app, **kwargs):
@@ -68,7 +73,8 @@ def runtests(app, **kwargs):
   apphdrs = app.get("headers")
   lastresp = None
   for u in urls:
-    #if u.get("disa"): continue
+    if u.get("disa"): continue
+    #runtest(u, app=)
     url = u.get("url")
     m = u.get("method")
     if not url.startswith("http"): # and not url.startswith("/"):
@@ -82,12 +88,13 @@ def runtests(app, **kwargs):
     kwp = {"url": url, "headers": hdrs}
     # TODO: Support for application/x-www-form-urlencoded (urlenc)
     if m in hreq.bodymeth and "params" in u: # Bodymeth ???
-      print(f"Assigning params (params type: {type(u.get('params'))}");
+      print(f"RUN: Assigning params (params type: {type(u.get('params'))}");
       if isinstance(u.get("params"), str): kwp["data"] = u.get("params")
       elif isinstance(u.get("params"), dict): kwp["json"] = u.get("params")
+      #u["body"] =  # There is not necessarily a serialised Body available !!!
     # NOTE: We deal w. request on sufficiently low level to warrant use of "requests"
     clen = str( len(u.get("params")) ) if isinstance(u.get("params"), str) else "N/A"
-    print(f"Call '{url}' ({m}) w. params type: {type(u.get('params'))} len: {clen}");
+    print(f"RUN: Call '{url}' ({m}) w. params type: {type(u.get('params'))} len: {clen}");
     #resp = hreq.request(u.get("method"), url, **kwp)
     t1 = time.time()  # Time
     resp = requests.request(m, **kwp)
@@ -96,18 +103,21 @@ def runtests(app, **kwargs):
     # TODO: t_analyze(u, resp): # Write to "result"
     # https://www.w3schools.com/python/ref_requests_response.asp
     u["respcode"] = rc = resp.status_code
+    ############## PASS/FAIL anaysis #############
     #resp.raise_for_status()
     ok = is_2XX(rc)
     expass = True if u.get("expect") == "pass" else False
     res = "FAIL"
     u["resplen"] = rclen = len(resp.text)
-    if ok: print(f"Response Code {rc} (resp-len: {rclen}B, time: {td})")
-    if ok and not expass: print("FAIL (expectation: fail)")
-    elif not ok and expass: print("FAIL (expectation: pass)")
-    else: res = "PASS"; print(f"PASS (expectation: {u.get('expect')})")
+    if ok: print(f"RUN: Response Code {rc} (resp-len: {rclen}B, time: {td})")
+    if ok and not expass: pass # print("FAIL (expectation: fail)")
+    elif not ok and expass: pass # print("FAIL (expectation: pass)")
+    else: res = "PASS"
+    print(f"{res} (expectation: {u.get('expect')})")
     # Write to "result"
     u["result"] = res # "testresult"
-    print(f"Res-cont: {resp.text}")
+    #################
+    print(f"RUN: Res-cont: {resp.text}")
     u["respcont"] = lastresp = resp.text # Cloud also parse based on ... headers or '{'
     #if resp.headers.get("content-type") == 'application/json':
     if u["respcont"].startswith("{"): u["respjson"] = resp.json()
@@ -120,11 +130,16 @@ def is_2XX(rc):
 def summary(app):
   urls = app.get("urls")
   for u in urls:
+    if u.get("disa"): continue
     u['method_u'] = u['method'].upper()
-    print("# URL: {url} ({method_u})".format(**u))
-#    print(f"""- Result: {u.get('result')}\n- Time: {u.get('resptime')}
-#- Response-Body-len: {u.get('resplen')}""");
-
+    u["url"] = "/" if not u.get("url") else u.get("url") # TODO: Do not set in dict !!!???
+    print("# URL: '{url}' ({method_u})".format(**u))
+    # print(f"- Body: {len() if u['method'] in hreq.bodymeth else ...}")
+    print(f"- Req-Body-len: {len(u['body']) if u.get('body') else 'N/A'}")
+    print(f"- Resp-Body-len: {u.get('resplen')}");
+    print(f"- Result: {u.get('result')}\n- Time: {u.get('resptime')}")
+    
+    print("")
 def docs(app):
   urls = app.get("urls")
   for u in urls:
@@ -154,7 +169,7 @@ ops = [
   {"id": "docs", "label": "", "cb": docs}
 ]
 def usage(msg):
-  print(msg)
+  if msg: print(msg)
   #
   exit(1)
 if __name__ == '__main__':
@@ -162,17 +177,21 @@ if __name__ == '__main__':
   #print(sys.path)
   #print(json.dumps(htest.appmock, indent=2))
   #op = sys.argv[1]
-  
+  debug = 1  
   if len(sys.argv) > 1: op = sys.argv.pop(1)
-  else: print("Pass subcommand as first arg!"); exit(1)
-  opn = list(filter(lambda opn: opn.get("id") == op, ops))
-  if not opn: print(f"{op} - No such operation !"); exit(1)
+  else: usage("Pass subcommand as first arg!"); exit(1)
+  opn = list(filter(lambda opn: opn.get("id") == op, ops))[0]
+  if not opn: usage(f"{op} - No such operation !"); exit(1)
+  if debug: print(f"Op: {op}, Opnode: {type(opn)}")
   opts = {}
   cfn = "./urltest.conf.json"
-  if len(sys.argv) > 2: cfn = aya.argv[1]
-  # if not exists/isfile(cfn)
+  if len(sys.argv) > 1: cfn = sys.argv[1]
+  if not os.path.isfile(cfn): print(f"No file '{cfg}' found."); exit(1)
+  if debug: print(f"Using config file '{cfn}'")
   app = htest.load(cfn)
+  if debug > 1: print(json.dumps(app, indent=2))
   htest.urls_init(app)
   opts["app"] = app
-  # print(json.dumps(app, indent=2))
+  opn.get("cb")(opts)
+  
   
