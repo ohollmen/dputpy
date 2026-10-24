@@ -113,7 +113,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
     # Query the specific entry at BASE scope to inspect its objectClass and member attribute
     if debug: print(f"Actually  search (BDN) '{current_dn}'...");
     try:
-      conn.search( search_base=current_dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE, attributes=["objectClass", member_attr] )
+      conn.search( search_base=current_dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE, attributes=sattrs )
     except LDAPException as e:
       import traceback
       traceback.print_exc()
