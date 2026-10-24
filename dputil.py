@@ -56,8 +56,25 @@ def yamlwrite(ref, fn):
   fh.write( yaml.dump(ref, Dumper=yaml.Dumper) )
   fh.close()
   return
-
-# dputil.tmpl_load(fn)
+# Load a python config file.
+# Return module handle or allow particular module-global to be returned
+# by kwarg (e.g.) modsym='cfg'
+# Also: ns = {};fh = open(path);exec(fh.read(), ns); cfg = ns["CONFIG"];
+# "import" loader would store module_name: sys.modules[module_name] = mod
+# Return module handle or symbol wirhin module when (valid) symname='...' is passed
+def pyload(fn, **kwargs):
+  import importlib.util
+  import time
+  mn = kwargs.get("module_name")
+  if not mn: mn = f"configx_{time.time_ns()}" # Also: f"config:{fn}"
+  spec = importlib.util.spec_from_file_location(mn, fn,)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  modsym = kwargs.get("modsym")
+  # Also: mod.__dict__["CONFIG"]; mod.__dict__.keys()
+  if modsym: return getattr(module, modsym, None)
+  return module
+# dputil.tmpl_load(fn):
 # Load template file and instantiate jinja2 template from it.
 # Template is ready to use (Call ... on it)
 # ```
