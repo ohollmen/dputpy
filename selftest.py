@@ -24,6 +24,9 @@ def test_yaml_parsing():
   print(json.dumps(y, indent=2));
   yarr = dputil.yamlload("./tdata/multidoc.yaml", Xmulti=1);
   print(json.dumps(yarr, indent=2));
+def test_py_parsing():
+  py = dputil.pyload("./tdata/sample.conf.py", modsym='cfg')
+  print(json.dumps(py, indent=2));
 def run_run_testing():
   res = dputil.run("ls -al /etc/passwd /etc/not_there");
   print(json.dumps(res, indent=2));
@@ -187,6 +190,7 @@ if __name__ == "__main__":
   #test_file_hash_num()
   #test_chage()
   #test_setops()
+  test_py_parsing(); exit(0)
   cla = clapp.new(ops)
   clapp.clparse(cla)
   rc = clapp.run(cla, None)
