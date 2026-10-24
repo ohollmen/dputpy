@@ -10,6 +10,7 @@ import ldap3
 import json
 from ldap3 import Server, Connection, Tls, BASE, LEVEL, SUBTREE
 from ldap3.core.exceptions import LDAPException
+import re
 import sys
   
 # Config for connection, bind, and schema parameters
@@ -18,6 +19,9 @@ LDAP_CONFIG_EXAMPLE = {
   "user": "cn=read-only-admin,dc=example,dc=com",  # Supports DN, UPN (user@domain), or SAM
   "bindpass": "SuperSecretPassword123!",
   "member_attr": "uniqueMember",		   # Configurable: e.g., 'member', 'uniqueMember'
+  "travre": "", # User Member traversal avoidance
+  #"debug": 1,
+  "idattr": "", # e.g. "uid"
   # Used to distinguish nested groups from users
   #"group_ocs": {
   #    "groupofuniquenames": True,
@@ -32,11 +36,15 @@ LDAP_CONFIG_EXAMPLE = {
 group_ocs_def = {
   "groupofuniquenames": True,
   "groupofnames": True,
-  "group": True,
+  "group": True, # AD typical (DN)
   "posixgroup": True,
 }
-#def add_group_ocs(ocslist):
-#   group_ocs_def
+# Add or Delete (add/del) an OC from group_ocs_def
+def add_group_ocs(ocslist, op='add'): # 
+  for oc in ocslist:
+    if   op == 'add': group_ocs_def[oc] = True
+    elif op == 'del': group_ocs_def.pop(oc, None) # Note: added "None" never throws KeyError
+
 # Establishes and binds an LDAP connection using the configuration dictionary. create_ldap_connection
 def ld_conn(config: dict) -> Connection:
   tls_config = ldap3.Tls( validate=ssl.CERT_REQUIRED if config.get("verify_ssl", False) else ssl.CERT_NONE )
@@ -45,16 +53,26 @@ def ld_conn(config: dict) -> Connection:
   
   # auto_bind=True immediately opens the socket and performs the bind operation
   bindpass = config.get("bindpass") or config.get("pass")
-  conn = ldap3.Connection( server, user=config["user"], password=config["bindpass"], auto_bind=True, raise_exceptions=True)
+  #user = config.get("user")
+  conn = ldap3.Connection( server, user=config["user"], password=bindpass, auto_bind=True, raise_exceptions=True)
   return conn
 
-# Normalize a Distinguished Name for reliable deduplication and cycle tracking.
+# Normalize a DN for reliable deduplication and cycle (circular references) tracking.
 def normalize_dn(dn: str) -> str:
   return dn.strip().lower()
 
-# Recursively traverse an LDAP group and returns a deduplicated set of non-group member DNs.
+# Initialize traversing stats.
+# This is also nice/easy way to reset the stats between 2 traversals
+def trav_stats():
+  s = {}
+  # Groups w. no members
+  s["grpcnt"] = s["usercnt"] = s["remcnt"] = s["grpemtycnt"] = 0
+  s["grpemtycnt"] = -1
+  return s
+# Recursively traverse an LDAP group and collect members from depth pf traversed tree.
 # Handles circular group nesting safely.
-def get_flattened_group_members(conn: Connection, root_group_dn: str, config: dict ) -> set[str]:
+# return a deduplicated set of non-group member DNs
+def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, config: dict ) -> set[str]:
   member_attr = config.get("member_attr") or config.get("memattr") # defaulted to "uniqueMember"
   if not member_attr: member_attr = "uniqueMember"
   group_ocs = config.get("group_ocs", group_ocs_def); # set()
@@ -63,20 +81,33 @@ def get_flattened_group_members(conn: Connection, root_group_dn: str, config: di
   visited_groups = set()   # Track normalized group DNs to prevent circular loops
   leaf_members = set()     # Store final deduplicated member DNs (preserves original casing via map)
   dn_case_map = {}	   # Maps normalized_dn -> original_dn for clean output
-  stats = config.get("stats", {"ucnt": 0})
+  
+  travre = config.get("travre") if config.get("travre") else None # speedup
+  # travre = re.compile(config.get("travre"), re.IGNORECASE) # Later: travre.search(current_dn)
+  debug  = config.get("debug")
+  #OLD: stats = config.get("stats", {"ucnt": 0})
+  stats  = config.get("stats")
+  idattr = config.get("idattr")
   def _traverse(current_dn: str):
     norm_current = normalize_dn(current_dn)
-
+    if debug: print(f"Enc: {norm_current} ... check patt / search");
     # Cycle prevention: skip if we have already inspected this group
     if norm_current in visited_groups: return
+    # Option "travre", traversal Regexp. See if we can recognize non-group and avoid fetching it (just store member DN)
+    # Drops e.g. real: 2.9s => 0.3s. TODO: Allow complement (MUST NOT MATCH to traverse, e.g ou=people, ...)
+    if travre and not re.search(travre, current_dn): # print(f"RE-SKIP (not {travre})");
+      dn_case_map[norm_current] = str(current_dn)
+      s["remcnt"] += 1
+      return # Before return MUST collect member (above)!
     # Query the specific entry at BASE scope to inspect its objectClass and member attribute
+    if debug: print(f"Actually  search ...");
     try:
       conn.search( search_base=current_dn, search_filter="(objectClass=*)", search_scope=BASE, attributes=["objectClass", member_attr] )
     except LDAPException as e:
-      print(f"[WARN] Could not read DN '{current_dn}': {e}")
+      print(f"[WARN] Search threw trying to find entry by DN '{current_dn}': {e}")
       return
 
-    if not conn.entries: return
+    if not conn.entries: print(f"Stale DN - No (0) entries by DN {current_dn}"); return
 
     entry = conn.entries[0] # There will always be one by DN
     entry_classes = { str(oc).lower() for oc in entry["objectClass"].values } if "objectClass" in entry else set()
@@ -86,7 +117,7 @@ def get_flattened_group_members(conn: Connection, root_group_dn: str, config: di
 
     if is_group:
       visited_groups.add(norm_current)
-
+      if stats: stats["grpcnt"] += 1
       # Extract members if the attribute exists and is populated
       if member_attr in entry and entry[member_attr].values:
         for target_dn in entry[member_attr].values:
@@ -97,9 +128,13 @@ def get_flattened_group_members(conn: Connection, root_group_dn: str, config: di
           # If already known as a visited group or collected leaf member, skip LDAP lookup
           if norm_target in visited_groups or norm_target in dn_case_map: continue
           _traverse(target_dn_str)
-    # User !
+    # User ! Note: We can gather any unique/ID attribute here by cfg "idattr"
     else:
-      stats["ucnt"] += 1
+      stats["usercnt"] += 1
+      # Single *first* value: value = entry["mail"].value OR entry.mail.value
+      # Multi (list): entry.memberOf.values
+      # Also: d = entry.entry_attributes_as_dict
+      if idattr and idattr in entry: dn_case_map[norm_current] = entry[idattr].value; return
       # Entry is a leaf member (e.g., user, computer, service account)
       dn_case_map[norm_current] = str(entry.entry_dn)
   #print("")
@@ -107,11 +142,18 @@ def get_flattened_group_members(conn: Connection, root_group_dn: str, config: di
   _traverse(root_group_dn)
 
   # Return original-cased DNs for all discovered leaf members
-  leaf_members = set(dn_case_map.values())
+  leaf_members = set(dn_case_map.values()) # Note: .values() - Original raw LDAP values (DN or idattr)
   # TODO: Option for set() or list:
   #return sorted(leaf_members) # if config.get("memsaslist") else leaf_members
   print("Stats: ", stats)
   return leaf_members
+
+def qp_ldscomm(cfg, qprof, **kwargs):
+  import copy
+  cfg2 = copy.deepcopy(cfg)
+  cfg2.pop("base") # eliminate: TypeError: str.format() got multiple values for keyword argument 'base'
+  return "ldapsearch -LLL -H '{hosturl}' -b '{base}' -w '{passwd}' -D '{user}' '{filter}'".format(**qp, **cfg2)
+
 
 def mkquery(cfg, qprof):
   bid = cfg.get("defbid") or "root" # Base id (e.g.): root,sa,user,group,mach
@@ -132,10 +174,16 @@ def query_by_prof(conn, cfg, qp):
   #attrs = []
   # success, result, response, request => for entry in response: (Now entry is dict !!!)
   # success, result, response, request =
+  #try:
   conn.search(search_base=qp.get("base"), search_filter=qp.get("filter"), attributes=attrs) # search_scope='BASE',
+  #except LDAPException as e:
+  #  ...
   # Print entries. Has entry_to_json() or entry_to_ldif() methods
-  if not len(conn.entries): usage(f"No results from '{base}' by filter '{filter}' (base_id: {bid}, scope: ...) !".format(**qp))
-  eset = []
+  if not len(conn.entries):
+    print(f"No results from '{base}' by filter '{filter}' (base_id: {bid}, scope: ...) !".format(**qp), file=sys.stderr)
+    return None # OR [] ?
+  # TODO: Only return result (see return value info above) or conn.entries ?
+  eset = [] # Collect here
   for entry in conn.entries:
   # Store here ...
   #for entry in response:
@@ -147,7 +195,8 @@ def query_by_prof(conn, cfg, qp):
 
 if __name__ == "__main__":
   import ldap_config
-  cfg = ldap_config.LDAP_CONFIG
+  cfg = ldap_config.LDAP_CONFIG # Config from ldap_config.py w. module-global LDAP_CONFIG
+  if len(sys.argv) < 2: print(f"Pass DN (to traverse) as first arg."); exit(1)
   target_group_dn = sys.argv[1] # e.g. "cn=engineering-all,ou=groups,dc=example,dc=com"
   #print(sys.argv)
   
@@ -164,9 +213,9 @@ if __name__ == "__main__":
   #opn.get("cb")(opts)
   try:
     print(f"Connecting to {cfg['hosturl']} as {cfg['user']}...")
-    ldap_conn = ld_conn(cfg) # LDAP_CONFIG
+    conn = ld_conn(cfg) # LDAP_CONFIG
     print(f"Traversing group tree starting at: {target_group_dn}\n")
-    members = get_flattened_group_members(ldap_conn, target_group_dn, cfg) # LDAP_CONFIG
+    members = get_flattened_group_members(conn, target_group_dn, cfg) # LDAP_CONFIG
     print(f"Total unique leaf members found: {len(members)}")
     for idx, member_dn in enumerate(sorted(members), start=1):
       print(f"  {idx}. {member_dn}")
