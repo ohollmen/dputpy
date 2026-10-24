@@ -8,6 +8,7 @@
 
 import sys
 import argparse
+opkey = "op" # Set (e.g.) `clapp.opkey = "act"` for custom opkey
 
 # Must be done outside __name == "__main__"
 #this_module = sys.modules['__main__']
@@ -19,12 +20,21 @@ def getmodulehandle():
   #print(f"Module name: {this_module.__name__}")
   #return this_module.__name__ # for __import__(__name__)
   return "NONE"
+
 # TODO: Allow also "rich" set of meta data
+# kwargs:
+# - clopts - Pass argparser (options) instance (will call .parse_args() here !)
+# - debug - Debug clapp execution
 def new(_ops, **kwargs):
   clapp = {"ops": _ops}
   debug = kwargs.get("debug") # or 
   if debug: print(f"Reporting module name: {__name__}");
   if not _ops: usage("Must have ops !")
+  # TODO: Convert dict format _ops to uniformal list format here already !!!
+  if isinstance(_ops, dict):
+    arrops = []
+    for k in _ops.keys(): opn = _ops[k]; arrops.append(opn)
+    clapp["ops"] = arrops
   #ops = _ops
   #if kwargs["autohelp"]: clapp["ops"]["help"] = ...
   # Store argparse instance created by main application
@@ -32,9 +42,12 @@ def new(_ops, **kwargs):
   #print(ops)
   return clapp
 
+# Parse commandline by extracting subcommand and passing the rest to argparser (if passed)
+# Return a disctioanry for the argparser parsed options.
 def clparse(ca, **kwargs):
   #global ops
   ops = ca["ops"]
+  if not isinstance(ops, list):  raise ValueError(f"Ops for clapp not in a list !")
   # Note the original "strip script name and subcommand" triggered arg parsing problem (error: unrecognized arguments: ...).
   # Must retain python script name in sys.argv as argparse
   # starts parsing sys.argv[1:] (wants to strip script name itself). Alt: add dummy script name back e.g. 
@@ -43,21 +56,24 @@ def clparse(ca, **kwargs):
   op = sys.argv.pop(1); # x = x[1:]. NEW 0 => 1
   #sys.argv.insert(0, "dummy") # putting dummy script name back as sys.arg[0] works as well
   if not op: usage(ca, "No subcommand/op given"); 
-  cmdok = False
-  if isinstance(ops, dict) and ops.get(op): cmdok = True
-  if isinstance(ops, list):
-    opn = next( (opn for opn in ops if opn.get("id") == op), None )
-    if opn: cmdok = True
-  if not cmdok: usage(ca, f"No subcommand {op} available")
+  #cmdok = False
+  #if isinstance(ops, dict) and ops.get(op): cmdok = True
+  #if isinstance(ops, list):
+  opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  #if opn: cmdok = True
+  #if not cmdok: usage(ca, f"No subcommand '{op}' available")
+  if not opn: usage(ca, f"No subcommand '{op}' available")
+  
   # TODO: Consider CL parameters (argparse)
   opts = {}
   ap = ca.get("clopts") # argparse instance
   if ap:
     # Note also: pargs, rawargs = parser.parse_known_args() # https://stackoverflow.com/questions/17118999/python-argparse-unrecognized-arguments
-    if kwargs.get("debug"): print(f"CL/Args (sys.argv) before parsing: ", sys.argv)
+    if kwargs.get("debug"): print(f"CL/Args (sys.argv) before parsing: ", sys.argv, file=sys.stderr)
     args = ap.parse_args() # parser.parse_args()
     opts = vars(args)
     #ALSO: ca["opts"] = opts # ???
+    opts[opkey] = op # opkey ?
   #print(ops)
   ca["op"] = op
   return opts
@@ -65,7 +81,7 @@ def clparse(ca, **kwargs):
 def usage(ca, msg, **kwargs):
   #global ops
   ops = ca["ops"]
-  if msg: print(msg)
+  if msg: print(msg, file=sys.stderr)
   #print(ops);
   oplist = None
   if   isinstance(ops, dict): oplist = ops.keys()
@@ -76,7 +92,7 @@ def usage(ca, msg, **kwargs):
 
 # Pass None (in app  __main__) to trigger parameterless call.
 # One app can only have one form of call for all handlers
-def run(ca, p):
+def run(ca, p=None):
   #global ops
   ops = ca["ops"]
   op  = ca["op"]
@@ -85,20 +101,22 @@ def run(ca, p):
   case = 0
   #if 
   # list - search for op
-  if isinstance(ops, list):
-    # opn = filter(lambda x: x.get("id", "") == op, ops)
-    #TODO:
-    opn = next( (opn for opn in ops if opn.get("id") == op), None )
-    cb = opn.get("cb")
-    case = 1
+  #if isinstance(ops, list):
+  # opn = filter(lambda x: x.get("id", "") == op, ops)
+  #TODO:
+  opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  if not opn: usage(ca, f"No op-node found for op='{op}'")
+  cb = opn.get("cb")
+  #  case = 1
   # OoO / Python DoD
-  elif isinstance(ops, dict):
-    # OoF / DoF
-    if callable(ops[op]): cb = ops[op]; case = 2
-    elif isinstance(ops[op], dict): cb = ops[op].get("cb"); case = 3
-  if not cb: print(f"No callback concluded for action (case: {case})!"); return
+  #elif isinstance(ops, dict):
+  #  # OoF / DoF
+  #  if callable(ops[op]): cb = ops[op]; case = 2
+  #  elif isinstance(ops[op], dict): cb = ops[op].get("cb"); case = 3
+  if not cb: print(f"No callback concluded for action !"); return 1 # (case: {case}
+  if not callable(cb): print(f"CB for action found, but is not callable !"); return 2
   if p:  rc = cb(p) # ops[op](p)
-  else:  rc = cb()  # ops[op]()
+  else:  rc = cb()  # ops[op]() # Handler works via globals
   return rc
 
 def is_all_func(d):
@@ -132,7 +150,8 @@ def gen_subcomm(opts):
   gen_ap(opts);
   #print(f"ops = {json.dumps(scarr, indent=2)}")
 ops = [
-  {"id": "argparse_opts", "label": "Generate argparse instantiation and argument registration calls (Pass --argnames ans optionally --appname)", "cb": gen_ap},
+  {"id": "argparse_opts", "label": "Generate argparse instantiation and argument registration calls (Pass --argnames ans optionally --appname)",
+    "cb": gen_ap},
   {"id": "subcommands", "label": "Generate an array of subcommands (Pass --scnames)", "cb": gen_subcomm},
 ]
 
