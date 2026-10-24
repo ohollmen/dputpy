@@ -178,6 +178,15 @@ def mkquery(cfg, qprof):
   # if not base: base = cfg.get("ubase")
   qprof["base"] = base
 
+# Find entry for DN, returning (Only) DN.
+# Search from ultimate base with always SUBTREE scope (Others: BASE, LEVEL, SUBTREE).
+# Only fetch objectclass attribute (always present)
+# Example: dn = find_for_dn(conn, cfg, f"(cn={grpname})")
+def find_for_dn(conn, cfg, sfilter):
+  conn.search(search_base=cfg.get("base"), search_filter=sfilter, search_scope=ldap3.SUBTREE, attributes=["objectclass"])
+  if not conn.entries: return None
+  #for entry in conn.entries:
+  return conn.entries[0].entry_dn
 # TODO: Only cfg
 def query_by_prof(conn, cfg, qp):
   mkquery(cfg, qp)
