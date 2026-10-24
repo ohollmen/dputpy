@@ -144,7 +144,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
           _traverse(target_dn_str)
     # User ! Note: We can gather any unique/ID attribute here by cfg "idattr"
     else:
-      stats["usercnt"] += 1
+      if stats: stats["usercnt"] += 1
       # Single *first* value: value = entry["mail"].value OR entry.mail.value
       # Multi (list): entry.memberOf.values
       # Also: d = entry.entry_attributes_as_dict
