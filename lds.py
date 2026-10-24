@@ -98,6 +98,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   idattr = config.get("idattr")
   sattrs = ["objectClass", member_attr]
   if idattr: sattrs.append(idattr)
+  if debug: print("Search attrs: ", sattrs);
   def _traverse(current_dn: str):
     norm_current = normalize_dn(current_dn)
     if debug: print(f"Enc: {norm_current} ... check patt ('{travre}') / search");
