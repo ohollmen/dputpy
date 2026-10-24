@@ -149,7 +149,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
       # Single *first* value: value = entry["mail"].value OR entry.mail.value
       # Multi (list): entry.memberOf.values
       # Also: d = entry.entry_attributes_as_dict
-      
+      if debug: print(entry.entry_to_ldif())
       if idattr and (idattr in entry): dn_case_map[norm_current] = entry[idattr].value; return
       # Entry is a leaf member (e.g., user, computer, service account)
       dn_case_map[norm_current] = str(entry.entry_dn)
