@@ -130,6 +130,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
     if is_group:
       visited_groups.add(norm_current)
       if stats: stats["grpcnt"] += 1
+      if debug: print(f"GROUP: Check memattr '{'member_attr'}' for presence and vals")
       # Extract members if the attribute exists and is populated
       if member_attr in entry and entry[member_attr].values:
         for target_dn in entry[member_attr].values:
