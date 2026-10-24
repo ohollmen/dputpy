@@ -161,7 +161,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   leaf_members = set(dn_case_map.values()) # Note: .values() - Original raw LDAP values (DN or idattr)
   # TODO: Option for set() or list:
   #return sorted(leaf_members) # if config.get("memsaslist") else leaf_members
-  print("Stats: ", stats)
+  #print("Stats: ", stats)
   return leaf_members
 
 def qp_ldscomm(cfg, qprof, **kwargs):
