@@ -97,7 +97,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   stats  = config.get("stats")
   idattr = config.get("idattr")
   sattrs = ["objectClass", member_attr]
-  #if idattr: sattrs.append()
+  if idattr: sattrs.append(idattr)
   def _traverse(current_dn: str):
     norm_current = normalize_dn(current_dn)
     if debug: print(f"Enc: {norm_current} ... check patt ('{travre}') / search");
@@ -168,7 +168,7 @@ def qp_ldscomm(cfg, qprof, **kwargs):
   cfg2.pop("base") # eliminate: TypeError: str.format() got multiple values for keyword argument 'base'
   return "ldapsearch -LLL -H '{hosturl}' -b '{base}' -w '{passwd}' -D '{user}' '{filter}'".format(**qp, **cfg2)
 
-
+# Resolves "base" for "bid" - Base id
 def mkquery(cfg, qprof):
   bid = cfg.get("defbid") or "root" # Base id (e.g.): root,sa,user,group,mach
   bases = cfg.get("bases")
@@ -181,7 +181,7 @@ def mkquery(cfg, qprof):
 # Find entry for DN, returning (Only) DN.
 # Search from ultimate base with always SUBTREE scope (Others: BASE, LEVEL, SUBTREE).
 # Only fetch objectclass attribute (always present)
-# Example: dn = find_for_dn(conn, cfg, f"(cn={grpname})")
+# Example: dn = lds.find_for_dn(conn, cfg, f"(cn={grpname})")
 def find_for_dn(conn, cfg, sfilter):
   conn.search(search_base=cfg.get("base"), search_filter=sfilter, search_scope=ldap3.SUBTREE, attributes=["objectclass"])
   if not conn.entries: return None
