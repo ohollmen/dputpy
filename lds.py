@@ -69,6 +69,13 @@ def trav_stats():
   s["grpcnt"] = s["usercnt"] = s["remcnt"] = s["grpemtycnt"] = 0
   s["grpemtycnt"] = -1
   return s
+# Output various info statistics on connection
+def lds_errinfo(conn, cfg=None):
+  if cfg: print(f"Server {cfg.get('hosturl')} conn info");
+  print("bound:", conn.bound)
+  print("closed:", conn.closed)
+  print("last_error:", conn.last_error)
+  print("result:", conn.result)
 # Recursively traverse an LDAP group and collect members from depth pf traversed tree.
 # Handles circular group nesting safely.
 # return a deduplicated set of non-group member DNs
@@ -88,6 +95,8 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   #OLD: stats = config.get("stats", {"ucnt": 0})
   stats  = config.get("stats")
   idattr = config.get("idattr")
+  sattrs = ["objectClass", member_attr]
+  #if idattr: sattrs.append()
   def _traverse(current_dn: str):
     norm_current = normalize_dn(current_dn)
     if debug: print(f"Enc: {norm_current} ... check patt / search");
@@ -100,10 +109,13 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
       s["remcnt"] += 1
       return # Before return MUST collect member (above)!
     # Query the specific entry at BASE scope to inspect its objectClass and member attribute
-    if debug: print(f"Actually  search ...");
+    if debug: print(f"Actually  search (BDN) '{current_dn}'...");
     try:
-      conn.search( search_base=current_dn, search_filter="(objectClass=*)", search_scope=BASE, attributes=["objectClass", member_attr] )
+      conn.search( search_base=current_dn, search_filter="(objectClass=*)", search_scope=ldap3.BASE, attributes=["objectClass", member_attr] )
     except LDAPException as e:
+      import traceback
+      traceback.print_exc()
+      lds_errinfo(conn, config);
       print(f"[WARN] Search threw trying to find entry by DN '{current_dn}': {e}")
       return
 
