@@ -106,7 +106,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
     # Drops e.g. real: 2.9s => 0.3s. TODO: Allow complement (MUST NOT MATCH to traverse, e.g ou=people, ...)
     if travre and not re.search(travre, current_dn): # print(f"RE-SKIP (not {travre})");
       dn_case_map[norm_current] = str(current_dn)
-      s["remcnt"] += 1
+      stats["remcnt"] += 1
       return # Before return MUST collect member (above)!
     # Query the specific entry at BASE scope to inspect its objectClass and member attribute
     if debug: print(f"Actually  search (BDN) '{current_dn}'...");
