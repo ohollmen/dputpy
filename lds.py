@@ -83,6 +83,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   member_attr = config.get("member_attr") or config.get("memattr") # defaulted to "uniqueMember"
   if not member_attr: member_attr = "uniqueMember"
   group_ocs = config.get("group_ocs", group_ocs_def); # set()
+  if not group_ocs: print(f"No group object classes found (Must have)!"); return;
   group_classes = { oc.lower() for oc in group_ocs }
 
   visited_groups = set()   # Track normalized group DNs to prevent circular loops
