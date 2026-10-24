@@ -99,7 +99,7 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   #if idattr: sattrs.append()
   def _traverse(current_dn: str):
     norm_current = normalize_dn(current_dn)
-    if debug: print(f"Enc: {norm_current} ... check patt / search");
+    if debug: print(f"Enc: {norm_current} ... check patt ('travre') / search");
     # Cycle prevention: skip if we have already inspected this group
     if norm_current in visited_groups: return
     # Option "travre", traversal Regexp. See if we can recognize non-group and avoid fetching it (just store member DN)
