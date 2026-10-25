@@ -192,7 +192,8 @@ def qp_resolve_base(cfg, qprof): # OLD mkquery
 # Search from ultimate base with always SUBTREE scope (Others: BASE, LEVEL, SUBTREE).
 # Only fetch objectclass attribute (always present)
 # Example: dn = lds.find_for_dn(conn, cfg, f"(cn={grpname})")
-def find_for_dn(conn, cfg, sfilter):
+def find_for_dn(conn, cfg, sfilter, **kwargs):
+  if kwargs.get('debug'): print(f"Search-for-DN from base '{cfg.get("base")}' by filter: '{sfilter}'")
   conn.search(search_base=cfg.get("base"), search_filter=sfilter, search_scope=ldap3.SUBTREE, attributes=["objectclass"])
   if not conn.entries: return None
   #for entry in conn.entries:
@@ -236,13 +237,17 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
   gbase   = cfg.get("bases", {}).get("group") # NOT Used !!!
   memattr = cfg.get("member_attr")
   basefmt = kwargs.get("basefmt")
+  debug   = kwargs.get("debug")
   ginfo = []
   import copy
   for gcn in grpnames:
     gdn = None
     stats = cfg["stats"] =  trav_stats()
-    if basefmt: gdn = basefmt.format(gcn=gcn)
-    else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gcn})")
+    if basefmt:
+      gdn = basefmt.format(gcn=gcn)
+      #
+    else:
+      gdn = gdn = find_for_dn(conn, cfg, f"(cn={gcn})", debug=debug)
     if not gdn: print(f"Entry DN (for '{gcn}') not resolved by {'baseformat' if basefmt else 'search'}-method !")
     print(f"Entry DN: {gdn}")
     mems = get_flattened_group_members(conn, gdn, cfg)
