@@ -48,13 +48,14 @@ def add_group_ocs(ocslist, op='add'): #
 # Establishes and binds an LDAP connection using the configuration dictionary. create_ldap_connection
 def ld_conn(config: dict) -> Connection:
   tls_config = ldap3.Tls( validate=ssl.CERT_REQUIRED if config.get("verify_ssl", False) else ssl.CERT_NONE )
-  
+  # Note: get_info='ALL'
   server = ldap3.Server( config["hosturl"], use_ssl=config["hosturl"].lower().startswith("ldaps://"), tls=tls_config, get_info=None)
   
   # auto_bind=True immediately opens the socket and performs the bind operation
   bindpass = config.get("bindpass") or config.get("pass")
-  #user = config.get("user")
+  #user = config.get("user") # raise_exceptions=True
   conn = ldap3.Connection( server, user=config["user"], password=bindpass, auto_bind=True, raise_exceptions=True)
+  # if not conn: print("Failed to get connection: !!");
   return conn
 
 # Normalize a DN for reliable deduplication and cycle (circular references) tracking.
@@ -193,7 +194,7 @@ def qp_resolve_base(cfg, qprof): # OLD mkquery
 # Only fetch objectclass attribute (always present)
 # Example: dn = lds.find_for_dn(conn, cfg, f"(cn={grpname})")
 def find_for_dn(conn, cfg, sfilter, **kwargs):
-  if kwargs.get('debug'): print(f"Search-for-DN from base '{cfg.get("base")}' by filter: '{sfilter}'")
+  if kwargs.get('debug'): print(f"Search-for-DN from base '{cfg.get("base")}' by filter: '{sfilter}'", file=sys.stderr)
   conn.search(search_base=cfg.get("base"), search_filter=sfilter, search_scope=ldap3.SUBTREE, attributes=["objectclass"])
   if not conn.entries: return None
   #for entry in conn.entries:
@@ -231,10 +232,14 @@ def query_by_prof(conn, cfg, qp):
 # Allow 2 methods of resolving group full DNs:
 # - Fixed base by a (python) format string given in kwargs["basefmt"]. Must have "{gcn}" parameter
 # - Search group from cfg["base"]
-# To count total mems at caller: totmen = 0; for g in ginfo: totmem += g["memcnt"]
+# To count total mems at caller: totmem = 0; for g in ginfo: totmem += g["memcnt"]
+# Example:
+# groupnames = dputil.fileload(grplistfn, lines=1, noempty=1, nocomm=1)
+# groupsinfo = lds.ld_groups_collect(conn, cfg, groupnames, debug=0)
+# print(json.dumps(groupsinfo, indent=2))
 def ld_groups_collect(conn, cfg, grpnames, **kwargs):
   if not isinstance(grpnames, list): print("Group names not in a list !"); return None
-  gbase   = cfg.get("bases", {}).get("group") # NOT Used !!!
+  # gbase   = cfg.get("bases", {}).get("group") # NOT Used !!!
   memattr = cfg.get("member_attr")
   basefmt = kwargs.get("basefmt")
   debug   = kwargs.get("debug")
@@ -243,18 +248,18 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
   for gcn in grpnames:
     gdn = None
     stats = cfg["stats"] =  trav_stats()
-    if basefmt:
-      gdn = basefmt.format(gcn=gcn)
-      #
-    else:
-      gdn = gdn = find_for_dn(conn, cfg, f"(cn={gcn})", debug=debug)
+    if basefmt: gdn = basefmt.format(gcn=gcn)
+    else: gdn = gdn = find_for_dn(conn, cfg, f"(cn={gcn})", debug=debug)
     if not gdn: print(f"Entry DN (for '{gcn}') not resolved by {'baseformat' if basefmt else 'search'}-method !")
-    print(f"Entry DN: {gdn}")
+    print(f"Entry DN: {gdn}", file=sys.stderr)
     mems = get_flattened_group_members(conn, gdn, cfg)
     gi = {"name": gcn, "mems": sorted(mems), "memcnt": len(mems), }
     gi["travstats"] = copy.deepcopy(stats)
     ginfo.append(gi)
   return ginfo
+ops = [
+  
+]
 if __name__ == "__main__":
   import ldap_config
   cfg = ldap_config.LDAP_CONFIG # Config from ldap_config.py w. module-global LDAP_CONFIG
