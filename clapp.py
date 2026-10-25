@@ -25,8 +25,13 @@ def getmodulehandle():
 # kwargs:
 # - clopts - Pass argparser (options) instance (will call .parse_args() here !)
 # - debug - Debug clapp execution
+# - namekey - Name key in application ops nodes (e.g. "label", "lbl", "desc" .. Default: "title")
+# ```
+# clapp.new(ops, clopts=parser, debug=0)
+# ```
 def new(_ops, **kwargs):
-  clapp = {"ops": _ops}
+  clapp = {"ops": _ops, "namekey": "title", }
+  if kwargs.get("namekey"): clapp["namekey"] = kwargs.get("namekey")
   debug = kwargs.get("debug") # or 
   if debug: print(f"Reporting module name: {__name__}");
   if not _ops: usage("Must have ops !")
@@ -43,7 +48,7 @@ def new(_ops, **kwargs):
   return clapp
 
 # Parse commandline by extracting subcommand and passing the rest to argparser (if passed)
-# Return a disctioanry for the argparser parsed options.
+# Return a dictionary for the argparser parsed options.
 def clparse(ca, **kwargs):
   #global ops
   ops = ca["ops"]
@@ -62,34 +67,46 @@ def clparse(ca, **kwargs):
   opn = next( (opn for opn in ops if opn.get("id") == op), None )
   #if opn: cmdok = True
   #if not cmdok: usage(ca, f"No subcommand '{op}' available")
-  if not opn: usage(ca, f"No subcommand '{op}' available")
-  
+  if not opn: usage(ca, f"No subcommand '{op}' available !")
+  ca["op"] = op # opts
   # TODO: Consider CL parameters (argparse)
   opts = {}
+  opts[opkey] = op # Always embed op
   ap = ca.get("clopts") # argparse instance
-  if ap:
-    # Note also: pargs, rawargs = parser.parse_known_args() # https://stackoverflow.com/questions/17118999/python-argparse-unrecognized-arguments
-    if kwargs.get("debug"): print(f"CL/Args (sys.argv) before parsing: ", sys.argv, file=sys.stderr)
-    args = ap.parse_args() # parser.parse_args()
-    opts = vars(args)
-    #ALSO: ca["opts"] = opts # ???
-    opts[opkey] = op # opkey ?
+  if not ap: return opts
+  ###### Run Arg Parser #####clapp.
+  #if ap:
+  # Note also: pargs, rawargs = parser.parse_known_args() # https://stackoverflow.com/questions/17118999/python-argparse-unrecognized-arguments
+  if kwargs.get("debug"): print(f"CL/Args (sys.argv) before parsing: ", sys.argv, file=sys.stderr)
+  args = ap.parse_args() # parser.parse_args()
+  opts = vars(args)
+  opts[opkey] = op
+  #ALSO: ca["opts"] = opts # ???  
   #print(ops)
-  ca["op"] = op
   return opts
 
+# 
 def usage(ca, msg, **kwargs):
   #global ops
   ops = ca["ops"]
   if msg: print(msg, file=sys.stderr)
   #print(ops);
   oplist = None
-  if   isinstance(ops, dict): oplist = ops.keys()
-  elif isinstance(ops, list): oplist = map(lambda x: x.get("id"), ops);
-  print("Try one of the subcommands: "+", ".join(oplist))
+  #if   isinstance(ops, dict): oplist = ops.keys()
+  #elif isinstance(ops, list): oplist = map(lambda x: x.get("id"), ops);
+  print("Try one of the subcommands:") # "+", ".join(oplist))
+  namekey = ca.get("namekey") # kwargs.get("namekey") or "title"
+  for opn in ops:
+    print(f"- {opn['id']} - {opn.get(namekey)}") # .format(**opn)
   exit(0)
   #return
-
+# TODO: Run a prerun callback to do conditional preparations opnode con
+def initrun(cla, cb): # Or prerun
+  ops = ca["ops"]
+  op  = ca["op"]
+  opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  cb(cla, op, opts)
+  return
 # Pass None (in app  __main__) to trigger parameterless call.
 # One app can only have one form of call for all handlers
 def run(ca, p=None):
@@ -170,7 +187,7 @@ if __name__ == "__main__":
   parser.add_argument("--argnames", type=str, default="opt1,opt2,opt3", help="Argument names to generate argparse instantiation from", required=False,)
   parser.add_argument("--appname", type=str, default="My App", help="Application (descriptive) name", required=False, )
   parser.add_argument("--scnames", type=str, default="sub1,sub2,sub3", help="Subcommand names as used on the CLI", required=False, )
-  cla = new(ops, clopts=parser)
+  cla = new(ops, clopts=parser, namekey='label', debug=0)
   opts = clparse(cla, debug=1)
   print("Opts gotten: ", opts);
   run(cla, opts)
