@@ -107,12 +107,18 @@ def initrun(cla, cb): # Or prerun
   opn = next( (opn for opn in ops if opn.get("id") == op), None )
   cb(cla, op, opts)
   return
+def opnode(cla):
+  ops = cla["ops"]
+  op  = cla["op"]
+  if not op: print("Resolve subcommand / op before querying opnode ( call clparse() ) !")
+  opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  return opn
 # Pass None (in app  __main__) to trigger parameterless call.
 # One app can only have one form of call for all handlers
-def run(ca, p=None):
+def run(cla, p=None):
   #global ops
-  ops = ca["ops"]
-  op  = ca["op"]
+  #ops = cla["ops"]
+  op  = cla["op"]
   rc = 0
   cb = None # ops[op]
   case = 0
@@ -121,7 +127,8 @@ def run(ca, p=None):
   #if isinstance(ops, list):
   # opn = filter(lambda x: x.get("id", "") == op, ops)
   #TODO:
-  opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  #opn = next( (opn for opn in ops if opn.get("id") == op), None )
+  opn = opnode(cla)
   if not opn: usage(ca, f"No op-node found for op='{op}'")
   cb = opn.get("cb")
   #  case = 1
