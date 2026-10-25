@@ -239,7 +239,7 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
   import copy
   for gcn in grpnames:
     gdn = None
-    stats = cfg["stats"] =  lds.trav_stats()
+    stats = cfg["stats"] =  trav_stats()
     if basefmt: gdn = basefmt.format(gcn=gcn)
     else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gdn})")
     print(f"Entry DN: {gdn}")
