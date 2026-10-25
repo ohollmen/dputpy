@@ -190,6 +190,7 @@ def tmpl_gen(arr, tmplfn, **kwargs):
 # Case "lines" also supports args:
 # - "noempty" - discard empty line
 # - "nocomm" - discared ('#' at beginning of line) comments
+# - "into" - Coerce / convert lines into "dict" (with values as True) or "set"
 def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
@@ -205,6 +206,7 @@ def fileload(fn, **kwargs):
     arr = fh.readlines()
     ne = kwargs.get("noempty", 0)
     nc = kwargs.get("nocomm", 0)
+    into = kwargs.get("into", 0)
     arr2 = []
     for l in arr:
       l = l.strip()
@@ -213,6 +215,8 @@ def fileload(fn, **kwargs):
       #if nc and re.search(r'^\s*#', l): continue
       if nc and l.startswith('#'): continue
       arr2.append(l)
+    if into == 'set': return set(arr2)
+    elif into == 'dict': return {it: True for it in arr2} # dict.fromkeys(arr, True)
     return arr2
   #return data
 
