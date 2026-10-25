@@ -63,3 +63,20 @@ def arrays_merge(a1, a2, **kwargs):
 
 # TODO
 # - Test deepcopy on string: ????
+
+# Single level inherit-merge within LoD
+# Inheritance is driven by 2 dict properties:
+# - id - Identifier for the node
+# - super - reference to node, whose property to inherit *for the properties not in entry itself*
+# Dict nodes can register to inherit by setting the super property to a valid value
+def super_inherit(items):
+  # Build id -> dict lookup
+  index = {item["id"]: item for item in items}
+  for item in items:
+    parent_id = item.get("super")
+    if not parent_id: continue
+    parent = index.get(parent_id)
+    if parent is None: print("Cannot resolve super '%s' for id '%s'",parent_id, item["id"]); continue
+    # Inherit only missing properties
+    for key, value in parent.items(): item.setdefault(key, value)
+  return index
