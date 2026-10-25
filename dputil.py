@@ -61,7 +61,7 @@ def yamlwrite(ref, fn):
 # by kwarg (e.g.) modsym='cfg'
 # Also: ns = {};fh = open(path);exec(fh.read(), ns); cfg = ns["CONFIG"];
 # "import" loader would store module_name: sys.modules[module_name] = mod
-# Return module handle or symbol wirhin module when (valid) symname='...' is passed
+# Return module handle or symbol within module when (valid) modsym='...' is passed
 def pyload(fn, **kwargs):
   import importlib.util
   import time
@@ -348,7 +348,7 @@ def isotime(**kwargs):
 def file_resolve(filename, paths):
   if isinstance(paths, str): paths = paths.split(":")
   if not isinstance(paths, list): print("paths to search not given as list (or str) !"); return None
-  for d in search_dirs:
+  for d in paths:
     p = os.path.join(d, filename)
     if os.path.isfile(p): return p
   return None
