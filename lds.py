@@ -161,20 +161,28 @@ def get_flattened_group_members(conn: ldap3.Connection, root_group_dn: str, conf
   leaf_members = set(dn_case_map.values()) # Note: .values() - Original raw LDAP values (DN or idattr)
   # TODO: Option for set() or list:
   #return sorted(leaf_members) # if config.get("memsaslist") else leaf_members
-  #print("Stats: ", stats)
+  #if debug: print("Stats: ", stats) # Prefer outputting at caller
   return leaf_members
 
 def qp_ldscomm(cfg, qprof, **kwargs):
   import copy
   cfg2 = copy.deepcopy(cfg)
   cfg2.pop("base") # eliminate: TypeError: str.format() got multiple values for keyword argument 'base'
-  return "ldapsearch -LLL -H '{hosturl}' -b '{base}' -w '{passwd}' -D '{user}' '{filter}'".format(**qp, **cfg2)
+  return "ldapsearch -LLL -H '{hosturl}' -b '{base}' -w '{passwd}' -D '{user}' '{filter}'".format(**qprof, **cfg2)
 
+# Prepare a query profile for 3 use cases:
+# - dn - Search by DN (Base id "bid" is never relevant/allowed)
+# - filter - search by filter from a higher base (all entries base)
+# - qid - Query profile id
+# Allowed kwargs
+# - bid ?
+def qp_prep(opts, cfg, **kwargs):
+  return 
 # Resolves "base" for "bid" - Base id
-def mkquery(cfg, qprof):
+def qp_resolve_base(cfg, qprof): # OLD mkquery
   bid = cfg.get("defbid") or "root" # Base id (e.g.): root,sa,user,group,mach
   bases = cfg.get("bases")
-  if not bases or not isinstance(bases, dict): usage("No bases for lookup")
+  if not bases or not isinstance(bases, dict): print("No bases for lookup"); return None
   if qprof.get("bid"): bid = qprof.get("bid")
   base = bases.get(bid)
   # if not base: base = cfg.get("ubase")
@@ -218,6 +226,28 @@ def query_by_prof(conn, cfg, qp):
     #eset.append(entry)
   return eset
 
+# Collect LDAP groups by their (CN) names and retrieve their (nested hierarchical) members
+# Allow 2 methods of resolving group full DNs:
+# - Fixed base by a (python) format string given in kwargs["basefmt"]. Must have "{gcn}" parameter
+# - Search group from cfg["base"]
+# To count total mems at caller: totmen = 0; for g in ginfo: totmem += g["memcnt"]
+def ld_groups_collect(conn, cfg, grpnames, **kwargs):
+  gbase   = cfg.get("bases", {}).get("group")
+  memattr = cfg.get("member_attr")
+  basefmt = kwargs.get("basefmt")
+  ginfo = []
+  import copy
+  for gcn in grpnames:
+    gdn = None
+    stats = cfg["stats"] =  lds.trav_stats()
+    if basefmt: gdn = basefmt.format(gcn=gcn)
+    else: gdn = gdn = lds.find_for_dn(conn, cfg, "(cn={gdn})")
+    print(f"Entry DN: {gdn}")
+    mems = lds.get_flattened_group_members(conn, gdn, cfg)
+    gi = {"name": gcn, mems: sorted(mems), "memcnt": len(mems), }
+    gi["travstats"] = copy.deepcopy(stats)
+    ginfo.append(gi)
+  return ginfo
 if __name__ == "__main__":
   import ldap_config
   cfg = ldap_config.LDAP_CONFIG # Config from ldap_config.py w. module-global LDAP_CONFIG
