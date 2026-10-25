@@ -185,24 +185,35 @@ def tmpl_gen(arr, tmplfn, **kwargs):
       print(out)
   return arr
 
+# Load file and return the content.
+# Can also return content as lines oriented list with kwarg "lines"
+# Case "lines" also supports args:
+# - "noempty" - DO not allow
 def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
   if not fh: return "";
-  data = fh.read()
-  if not data: return ""
-  if kwargs.get("lines", 0):
+  if not kwargs.get("lines", 0):
+    data = fh.read()
+    if not data: return ""
+    return data
+  #if kwargs.get("lines", 0):
+  else:
     # Also re.split()
-    arr = data.split("\n")
+    #arr = data.split("\n")
+    arr = fh.readlines()
     ne = kwargs.get("noempty", 0)
     nc = kwargs.get("nocomm", 0)
     arr2 = []
     for l in arr:
-      if ne and re.search(r'^\s*$', l): continue
-      if nc and re.search(r'^\s*#', l): continue
+      l = l.strip()
+      #if ne and re.search(r'^\s*$', l): continue
+      if ne and not l: continue
+      #if nc and re.search(r'^\s*#', l): continue
+      if nc and l.startswith('#'): continue
       arr2.append(l)
     return arr2
-  return data
+  #return data
 
 def filewrite(cont, fn):
   fh = open(fn, 'w')
@@ -328,3 +339,16 @@ def isotime(**kwargs):
     tcomp = tstr.split(" ")
     tstr = tcomp[0]
   return tstr
+
+# Find a file from set of paths (as list) and stop search at first matching path.
+# Will accept paths as ':' delimited string or list.
+# This could use pathlib (pathlib.Path(d) / fn
+# TODO: Consider integrating pathlib.Path(d).expanduser()
+# In the caller: import pathlib; map(lambda d: pathlib.Path(d).expanduser(), paths)
+def file_resolve(filename, paths):
+  if isinstance(paths, str): paths = paths.split(":")
+  if not isinstance(paths, list): print("paths to search not given as list (or str) !"); return None
+  for d in search_dirs:
+    p = os.path.join(d, filename)
+    if os.path.isfile(p): return p
+  return None
