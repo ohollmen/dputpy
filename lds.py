@@ -232,7 +232,8 @@ def query_by_prof(conn, cfg, qp):
 # - Search group from cfg["base"]
 # To count total mems at caller: totmen = 0; for g in ginfo: totmem += g["memcnt"]
 def ld_groups_collect(conn, cfg, grpnames, **kwargs):
-  gbase   = cfg.get("bases", {}).get("group")
+  if not isinstance(grpnames, list): print("Group names not in a list !"); return None
+  gbase   = cfg.get("bases", {}).get("group") # NOT Used !!!
   memattr = cfg.get("member_attr")
   basefmt = kwargs.get("basefmt")
   ginfo = []
@@ -241,8 +242,8 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
     gdn = None
     stats = cfg["stats"] =  trav_stats()
     if basefmt: gdn = basefmt.format(gcn=gcn)
-    else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gdn})")
-    if not gdn: print(f"Entry DN (for '{gcn}' not resolved by {'baseformat' if basefmt else 'search'}-method !")
+    else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gcn})")
+    if not gdn: print(f"Entry DN (for '{gcn}') not resolved by {'baseformat' if basefmt else 'search'}-method !")
     print(f"Entry DN: {gdn}")
     mems = get_flattened_group_members(conn, gdn, cfg)
     gi = {"name": gcn, mems: sorted(mems), "memcnt": len(mems), }

@@ -188,7 +188,8 @@ def tmpl_gen(arr, tmplfn, **kwargs):
 # Load file and return the content.
 # Can also return content as lines oriented list with kwarg "lines"
 # Case "lines" also supports args:
-# - "noempty" - DO not allow
+# - "noempty" - discard empty line
+# - "nocomm" - discared ('#' at beginning of line) comments
 def fileload(fn, **kwargs):
   fh = open(fn, 'r')
   # TODO: stderr ...
