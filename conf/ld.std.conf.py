@@ -1,3 +1,4 @@
+import os
 cfg = {
   "id": "stdldap",
   "hosturl": "ldaps://ldap.company.com:636",
@@ -23,6 +24,7 @@ cfg = {
   "member_attr": "member", # "member", "memberuid"
   #"travre": "ou=groups,",
   "travre": "",
+  #"idattr": "", # uid ?
   "group_ocs": {
     "groupofuniquenames": True,
     "groupofnames": True,
