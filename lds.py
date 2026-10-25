@@ -251,7 +251,7 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
     if not gdn: print(f"Entry DN (for '{gcn}') not resolved by {'baseformat' if basefmt else 'search'}-method !")
     print(f"Entry DN: {gdn}")
     mems = get_flattened_group_members(conn, gdn, cfg)
-    gi = {"name": gcn, mems: sorted(mems), "memcnt": len(mems), }
+    gi = {"name": gcn, "mems": sorted(mems), "memcnt": len(mems), }
     gi["travstats"] = copy.deepcopy(stats)
     ginfo.append(gi)
   return ginfo
