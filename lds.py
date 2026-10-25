@@ -241,9 +241,9 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
     gdn = None
     stats = cfg["stats"] =  lds.trav_stats()
     if basefmt: gdn = basefmt.format(gcn=gcn)
-    else: gdn = gdn = lds.find_for_dn(conn, cfg, "(cn={gdn})")
+    else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gdn})")
     print(f"Entry DN: {gdn}")
-    mems = lds.get_flattened_group_members(conn, gdn, cfg)
+    mems = get_flattened_group_members(conn, gdn, cfg)
     gi = {"name": gcn, mems: sorted(mems), "memcnt": len(mems), }
     gi["travstats"] = copy.deepcopy(stats)
     ginfo.append(gi)
