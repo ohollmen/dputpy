@@ -62,11 +62,13 @@ def yamlwrite(ref, fn):
 # Also: ns = {};fh = open(path);exec(fh.read(), ns); cfg = ns["CONFIG"];
 # "import" loader would store module_name: sys.modules[module_name] = mod
 # Return module handle or symbol within module when (valid) modsym='...' is passed
+pylid = 0
 def pyload(fn, **kwargs):
   import importlib.util
   import time
   mn = kwargs.get("module_name")
-  if not mn: mn = f"configx_{time.time_ns()}" # Also: f"config:{fn}"
+  if not mn: mn = f"configx_{time.time_ns()}_{pylid}" # Also: f"config:{fn}"
+  pylid += 1
   spec = importlib.util.spec_from_file_location(mn, fn,)
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)

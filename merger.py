@@ -80,3 +80,31 @@ def super_inherit(items):
     # Inherit only missing properties
     for key, value in parent.items(): item.setdefault(key, value)
   return index
+
+# Create a sum of property.
+# Property can be either list or scalar number (int or float)
+def summarize_cnt(lod, prop):
+  # Sample single prop ahead of loop ?
+  if not isinstance(lod, list): return 0
+  if not lod: return 0
+  tot = 0
+  sample = lod[0]
+  dtype = 1
+  if isinstance(sample, list): dtype = 2 # List
+  #elif isinstance(sample, (int, float)): dtype = 1
+  elif isinstance(sample, int): dtype = 1 # Scalar num
+  elif isinstance(sample, float): dtype = 1 # Scalar num
+  #if 
+  for it in lod:
+    if isinstance(it[prop], list): tot += len(it[prop]) # List
+    elif isinstance(it[prop], int): tot += it[prop] # Scalar num
+  return tot
+
+if __name__ == "__main__":
+  lod = [{"n": 1, }, {"n": 2, }, {"n": 3, }]
+  lod2 = [{"n": [None, None], }, {"n": [], }, {"n": [None, None, None, None, None, None], }]
+  val = summarize_cnt(lod, "n");
+  print(f"Total: {val}");
+  val = summarize_cnt(lod2, "n");
+  print(f"Total: {val}");
+  exit(1)
