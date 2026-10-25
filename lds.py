@@ -242,6 +242,7 @@ def ld_groups_collect(conn, cfg, grpnames, **kwargs):
     stats = cfg["stats"] =  trav_stats()
     if basefmt: gdn = basefmt.format(gcn=gcn)
     else: gdn = gdn = find_for_dn(conn, cfg, "(cn={gdn})")
+    if not gdn: print(f"Entry DN (for '{gcn}' not resolved by {'baseformat' if basefmt else 'search'}-method !")
     print(f"Entry DN: {gdn}")
     mems = get_flattened_group_members(conn, gdn, cfg)
     gi = {"name": gcn, mems: sorted(mems), "memcnt": len(mems), }
