@@ -306,7 +306,7 @@ def csv_write(arr, fn, **kwargs):
   
   # Sample (all fields) from first
   if not fldnames:
-    fldnames = arr[0].keys()
+    fldnames = arr[0].keys() # Ordered in Py > 3.6
   
   qc = kwargs.get("qchar")
   if not qc: qc = '"'
@@ -367,3 +367,7 @@ if __name__ == "__main__":
   fn = os.path.dirname(os.path.abspath(__file__)) + "/tdata/sample.conf.py"
   cfg = pyload(fn, modsym='cfg')
   print(json.dumps(cfg))
+  # Load many to test sequence
+  fn = os.path.dirname(os.path.abspath(__file__)) + "/conf/ld.std.conf.py"
+  cfg2 = pyload(fn, modsym='cfg')
+  print(json.dumps(cfg2))

@@ -1,4 +1,4 @@
-# Easy Transformations
+# Typical modification and transformations patterns to entries.
 # Example:
 # import dputpy.xform as xform
 # TODO: Module name: iter, foreach. Allow filter=1 option
@@ -22,3 +22,10 @@ def xform(data, cb, **kwargs):
   return data
 
 #def filter()
+
+def props_del(d, props):
+  for key in props: it.pop(key, None)
+
+def index_by(arr, prop):
+  #if not isinstance(arr, list): print("Can't index a non-list"); return
+  return {it[prop]: it  for it in arr}
