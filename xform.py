@@ -24,7 +24,7 @@ def xform(data, cb, **kwargs):
 #def filter()
 
 def props_del(d, props):
-  for key in props: it.pop(key, None)
+  for key in props: d.pop(key, None)
 
 def index_by(arr, prop):
   #if not isinstance(arr, list): print("Can't index a non-list"); return
